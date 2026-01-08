@@ -83,7 +83,14 @@ const CategoriesPage = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Upload failed');
+        let message = 'Upload failed';
+        try {
+          const err = await response.json();
+          message = err?.message || err?.error || message;
+        } catch {
+          // ignore
+        }
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -91,7 +98,11 @@ const CategoriesPage = () => {
       setImagePreview(data.url);
       toast({ title: 'Success', description: 'Image uploaded successfully' });
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to upload image', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: (error as any)?.message ?? 'Failed to upload image',
+        variant: 'destructive'
+      });
     } finally {
       setIsUploading(false);
     }

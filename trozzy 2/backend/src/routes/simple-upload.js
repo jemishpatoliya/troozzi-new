@@ -1,28 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
+const crypto = require('crypto');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
-// Create uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, '../../public/uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
+const AWS_REGION = process.env.AWS_REGION;
+const AWS_S3_BUCKET = process.env.AWS_S3_BUCKET;
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadsDir);
+const s3 = new S3Client({ region: AWS_REGION });
+
+const UploadSchema = new mongoose.Schema(
+    {
+        key: { type: String, required: true },
+        url: { type: String, required: true },
+        bucket: { type: String, required: true },
+        region: { type: String, required: true },
+        contentType: { type: String, default: '' },
+        size: { type: Number, default: 0 },
+        originalName: { type: String, default: '' },
     },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+    { timestamps: true }
+);
+
+const Upload = mongoose.models.Upload || mongoose.model('Upload', UploadSchema);
 
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(),
     limits: {
         fileSize: 5 * 1024 * 1024 // 5MB limit
     },
@@ -38,6 +42,13 @@ const upload = multer({
 // POST /api/upload/image - Upload image
 router.post('/image', upload.single('image'), async (req, res) => {
     try {
+        if (!AWS_REGION || !AWS_S3_BUCKET) {
+            return res.status(500).json({
+                success: false,
+                message: 'Missing AWS configuration (AWS_REGION, AWS_S3_BUCKET)'
+            });
+        }
+
         if (!req.file) {
             return res.status(400).json({
                 success: false,
@@ -45,16 +56,42 @@ router.post('/image', upload.single('image'), async (req, res) => {
             });
         }
 
-        // Return the uploaded file URL
-        const imageUrl = `/uploads/${req.file.filename}`;
+        const ext = (req.file.originalname || '').split('.').pop() || 'bin';
+        const random = crypto.randomBytes(12).toString('hex');
+        const key = `uploads/${Date.now()}-${random}.${ext}`;
+
+        await s3.send(
+            new PutObjectCommand({
+                Bucket: AWS_S3_BUCKET,
+                Key: key,
+                Body: req.file.buffer,
+                ContentType: req.file.mimetype,
+            })
+        );
+
+        const imageUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+
+        const saved = await Upload.create({
+            key,
+            url: imageUrl,
+            bucket: AWS_S3_BUCKET,
+            region: AWS_REGION,
+            contentType: req.file.mimetype,
+            size: req.file.size,
+            originalName: req.file.originalname,
+        });
 
         res.json({
             success: true,
             message: 'Image uploaded successfully',
-            url: imageUrl,
-            filename: req.file.filename,
-            originalname: req.file.originalname,
-            size: req.file.size
+            id: String(saved._id),
+            key: saved.key,
+            url: saved.url,
+            bucket: saved.bucket,
+            region: saved.region,
+            originalname: saved.originalName,
+            size: saved.size,
+            contentType: saved.contentType,
         });
     } catch (error) {
         console.error('Upload error:', error);
@@ -67,17 +104,10 @@ router.post('/image', upload.single('image'), async (req, res) => {
 
 // GET /api/uploads/:filename - Serve uploaded files
 router.get('/uploads/:filename', (req, res) => {
-    const filename = req.params.filename;
-    const filePath = path.join(uploadsDir, filename);
-
-    if (fs.existsSync(filePath)) {
-        res.sendFile(filePath);
-    } else {
-        res.status(404).json({
-            success: false,
-            message: 'File not found'
-        });
-    }
+    res.status(410).json({
+        success: false,
+        message: 'Local file serving is disabled. Use the returned S3 url/key.'
+    });
 });
 
 module.exports = router;
