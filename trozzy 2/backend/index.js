@@ -40,8 +40,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(limiter);
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // Routes
@@ -71,24 +71,24 @@ app.get('/api/health', (req, res) => {
 });
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('✅ MongoDB Atlas Connected');
-  console.log(`🚀 Server running on port ${PORT}`);
-})
-.catch((error) => {
-  console.error('❌ MongoDB connection error:', error);
-  process.exit(1);
-});
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log('✅ MongoDB Atlas Connected');
 
-// Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 TROZZY Backend Server running on port ${PORT}`);
-  console.log(`📊 MongoDB Atlas connected`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+    // Start server only after DB is ready
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 TROZZY Backend Server running on port ${PORT}`);
+      console.log(`📊 MongoDB Atlas connected`);
+      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+  })
+  .catch((error) => {
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
+  });
 
 module.exports = app;

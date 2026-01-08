@@ -16,13 +16,30 @@ type Props = {
   className?: string;
 };
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.readAsDataURL(file);
+async function uploadFileToServer(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("image", file);
+
+  const res = await fetch("/api/upload/image", {
+    method: "POST",
+    body: fd,
   });
+
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try {
+      const data = await res.json();
+      msg = data?.message || data?.error || msg;
+    } catch {
+      // ignore
+    }
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  const url = data?.url;
+  if (!url) throw new Error("Upload failed: missing url");
+  return String(url);
 }
 
 export function MediaManager({ images, thumbnailId, onChange, className }: Props) {
@@ -30,6 +47,7 @@ export function MediaManager({ images, thumbnailId, onChange, className }: Props
   const [urlDraft, setUrlDraft] = useState("");
   const [preview, setPreview] = useState<ProductImage | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const resolvedThumbId = useMemo(() => {
     if (thumbnailId && images.some((i) => i.id === thumbnailId)) return thumbnailId;
@@ -52,11 +70,21 @@ export function MediaManager({ images, thumbnailId, onChange, className }: Props
   const upload = async (files: FileList | null) => {
     if (!files) return;
     const slice = Array.from(files).slice(0, Math.max(0, 12 - images.length));
-    const nextUrls = await Promise.all(slice.map(readFileAsDataUrl));
-    const appended = nextUrls.map((url) => ({ id: `img-${Date.now()}-${Math.random().toString(16).slice(2)}`, url }));
-    const next = [...images, ...appended];
-    setImages(next, resolvedThumbId ?? appended[0]?.id ?? null);
-    if (inputRef.current) inputRef.current.value = "";
+    if (!slice.length) return;
+
+    setUploading(true);
+    try {
+      const nextUrls = await Promise.all(slice.map(uploadFileToServer));
+      const appended = nextUrls.map((url) => ({ id: `img-${Date.now()}-${Math.random().toString(16).slice(2)}`, url }));
+      const next = [...images, ...appended];
+      setImages(next, resolvedThumbId ?? appended[0]?.id ?? null);
+      if (inputRef.current) inputRef.current.value = "";
+    } catch (e: any) {
+      // Keep it minimal: surface the error without adding UI components.
+      window.alert(e?.message ?? "Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const remove = (id: string) => {
@@ -116,7 +144,7 @@ export function MediaManager({ images, thumbnailId, onChange, className }: Props
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => inputRef.current?.click()} className="gap-2">
                 <Upload className="h-4 w-4" />
-                Upload
+                {uploading ? "Uploading..." : "Upload"}
               </Button>
             </div>
           </div>

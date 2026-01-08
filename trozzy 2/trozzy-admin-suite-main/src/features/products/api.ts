@@ -2,10 +2,12 @@ import type { Product } from "@/lib/mockData";
 import type { ProductManagementFormValues } from "./types";
 
 async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("token");
   const res = await fetch(input, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
