@@ -1,0 +1,6 @@
+
+> trozzy-reviews-api@1.0.0 dev
+> tsx watch src/index.ts
+
+✅ Upload directories ready
+API listening on http://localhost:5050

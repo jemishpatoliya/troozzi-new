@@ -1,0 +1,47 @@
+# dependencies
+node_modules/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# build output
+dist/
+build/
+.out/
+.next/
+
+# env files
+.env
+.env.*
+!.env.example
+
+# caches
+.cache/
+.parcel-cache/
+.eslintcache
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# misc
+*.tgz
