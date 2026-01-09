@@ -14,13 +14,16 @@ const OrderTracking = () => {
         new: { label: 'Order Placed', icon: <FiPackage />, color: 'text-info-600 bg-info-50' },
         processing: { label: 'Processing', icon: <FiClock />, color: 'text-warning-600 bg-warning-50' },
         paid: { label: 'Paid', icon: <FiCreditCard />, color: 'text-info-600 bg-info-50' },
+        confirmed: { label: 'Confirmed', icon: <FiCheck />, color: 'text-info-600 bg-info-50' },
+        packed: { label: 'Packed', icon: <FiPackage />, color: 'text-warning-600 bg-warning-50' },
         shipped: { label: 'Shipped', icon: <FiTruck />, color: 'text-warning-600 bg-warning-50' },
+        out_for_delivery: { label: 'Out for Delivery', icon: <FiTruck />, color: 'text-primary-600 bg-primary-50' },
         delivered: { label: 'Delivered', icon: <FiCheck />, color: 'text-success-600 bg-success-50' },
         cancelled: { label: 'Cancelled', icon: <FiClock />, color: 'text-danger-600 bg-danger-50' },
         returned: { label: 'Returned', icon: <FiPackage />, color: 'text-danger-600 bg-danger-50' }
     };
 
-    const baseStatusFlow = ['new', 'processing', 'paid', 'shipped', 'delivered'];
+    const baseStatusFlow = ['new', 'processing', 'paid', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
 
     const getStatusFlow = (currentStatus) => {
         if (currentStatus === 'cancelled') return [...baseStatusFlow.slice(0, 1), 'cancelled'];

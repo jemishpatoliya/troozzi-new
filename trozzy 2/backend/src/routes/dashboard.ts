@@ -5,35 +5,9 @@ import { ProductModel } from "../models/product";
 import { OrderModel } from "../models/order";
 import { UserModel } from "../models/user";
 
+import { authenticateAdmin } from "../middleware/adminAuth";
+
 const router = Router();
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-
-type AuthedReq = Request & { userId?: string };
-
-const authenticateAdmin = (req: AuthedReq, res: Response, next: () => void) => {
-  const token = req.headers.authorization?.replace("Bearer ", "");
-
-  if (!token) {
-    return res.status(401).json({ error: "Access token required" });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId?: string; id?: string };
-    req.userId = decoded.userId ?? decoded.id;
-    if (!req.userId) return res.status(401).json({ error: "Invalid token" });
-
-    UserModel.findById(req.userId)
-      .then((user) => {
-        if (!user) return res.status(401).json({ error: "Invalid token" });
-        if (user.role !== "admin") return res.status(403).json({ error: "Admin access required" });
-        next();
-      })
-      .catch(() => res.status(401).json({ error: "Invalid token" }));
-  } catch (_error) {
-    return res.status(401).json({ error: "Invalid token" });
-  }
-};
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());

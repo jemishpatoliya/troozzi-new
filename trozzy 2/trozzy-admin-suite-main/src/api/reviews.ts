@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5050/api';
+const API_BASE = ((import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '') as string)
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
+const API_BASE_URL = API_BASE ? `${API_BASE}/api` : '/api';
 
 // Type definitions
 export interface ReviewQueryParams {

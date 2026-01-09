@@ -20,6 +20,11 @@ import { exportToCSV } from '@/lib/mockData';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '')
+  .toString()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
 type AdvancedAnalyticsPayload = {
   success: boolean;
   data?: {
@@ -65,7 +70,7 @@ const AdvancedAnalytics = () => {
           return;
         }
 
-        const response = await axios.get<AdvancedAnalyticsPayload>(`/api/admin/analytics/advanced?period=${period}`,
+        const response = await axios.get<AdvancedAnalyticsPayload>(`${API_BASE_URL}/api/admin/analytics/advanced?period=${period}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

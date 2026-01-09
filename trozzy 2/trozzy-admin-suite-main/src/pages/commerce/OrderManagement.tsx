@@ -76,7 +76,9 @@ const OrderManagement: React.FC = () => {
 
   const statusOptions = [
     { value: '', label: 'All Status' },
-    { value: 'placed', label: 'Placed' },
+    { value: 'new', label: 'New' },
+    { value: 'processing', label: 'Processing' },
+    { value: 'paid', label: 'Paid' },
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'packed', label: 'Packed' },
     { value: 'shipped', label: 'Shipped' },
@@ -96,8 +98,12 @@ const OrderManagement: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'placed':
+      case 'new':
         return 'text-info-600 bg-info-50 border-info-200';
+      case 'processing':
+        return 'text-warning-600 bg-warning-50 border-warning-200';
+      case 'paid':
+        return 'text-success-600 bg-success-50 border-success-200';
       case 'confirmed':
         return 'text-info-600 bg-info-50 border-info-200';
       case 'packed':
@@ -134,63 +140,16 @@ const OrderManagement: React.FC = () => {
 
   useEffect(() => {
     loadOrders();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [orders, filters]);
+  }, [filters]);
 
   const loadOrders = async () => {
     try {
       setLoading(true);
-      // Mock data for now - replace with actual API call
-      const mockOrders: Order[] = [
-        {
-          id: 'ORD12345',
-          userId: 'USR001',
-          userEmail: 'john.doe@example.com',
-          userName: 'John Doe',
-          products: [
-            {
-              id: 'PROD001',
-              name: 'Wireless Headphones',
-              price: 79.99,
-              quantity: 1,
-              image: 'https://via.placeholder.com/60x60'
-            },
-            {
-              id: 'PROD002',
-              name: 'Phone Case',
-              price: 19.99,
-              quantity: 2,
-              image: 'https://via.placeholder.com/60x60'
-            }
-          ],
-          totalAmount: 119.97,
-          paymentMethod: 'Credit Card',
-          paymentStatus: 'completed',
-          currentStatus: 'shipped',
-          shippingAddress: {
-            name: 'John Doe',
-            street: '123 Main St',
-            city: 'New York',
-            state: 'NY',
-            zipCode: '10001',
-            country: 'USA'
-          },
-          trackingNumber: 'TRK123456789',
-          courierName: 'Express Delivery',
-          createdAt: '2024-01-15T10:30:00Z',
-          updatedAt: '2024-01-16T09:00:00Z',
-          statusHistory: [
-            { status: 'placed', timestamp: '2024-01-15T10:30:00Z', note: 'Order placed successfully' },
-            { status: 'confirmed', timestamp: '2024-01-15T11:00:00Z', note: 'Payment confirmed' },
-            { status: 'packed', timestamp: '2024-01-15T14:30:00Z', note: 'Order packed' },
-            { status: 'shipped', timestamp: '2024-01-16T09:00:00Z', note: 'Order shipped' }
-          ]
-        }
-      ];
-      setOrders(mockOrders);
+      const response = await ordersAPI.getAllOrders(filters);
+      if (response.success) {
+        setOrders(response.data);
+        setFilteredOrders(response.data);
+      }
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
@@ -199,26 +158,7 @@ const OrderManagement: React.FC = () => {
   };
 
   const applyFilters = () => {
-    let filtered = [...orders];
-
-    if (filters.status) {
-      filtered = filtered.filter(order => order.currentStatus === filters.status);
-    }
-
-    if (filters.paymentStatus) {
-      filtered = filtered.filter(order => order.paymentStatus === filters.paymentStatus);
-    }
-
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(order =>
-        order.id.toLowerCase().includes(searchLower) ||
-        order.userName.toLowerCase().includes(searchLower) ||
-        order.userEmail.toLowerCase().includes(searchLower)
-      );
-    }
-
-    setFilteredOrders(filtered);
+    loadOrders();
   };
 
   const handleStatusUpdate = async () => {
@@ -226,28 +166,9 @@ const OrderManagement: React.FC = () => {
 
     try {
       setUpdating(true);
-      // Mock API call - replace with actual API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await ordersAPI.updateOrderStatus(selectedOrder.id, { status: newStatus });
 
-      const updatedOrders = orders.map(order =>
-        order.id === selectedOrder.id
-          ? {
-              ...order,
-              currentStatus: newStatus as any,
-              updatedAt: new Date().toISOString(),
-              statusHistory: [
-                ...order.statusHistory,
-                {
-                  status: newStatus,
-                  timestamp: new Date().toISOString(),
-                  note: `Status updated to ${newStatus}`
-                }
-              ]
-            }
-          : order
-      );
-
-      setOrders(updatedOrders);
+      await loadOrders();
       setShowStatusModal(false);
       setNewStatus('');
       setSelectedOrder(null);
@@ -263,21 +184,9 @@ const OrderManagement: React.FC = () => {
 
     try {
       setUpdating(true);
-      // Mock API call - replace with actual API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await ordersAPI.addTracking(selectedOrder.id, trackingInfo);
 
-      const updatedOrders = orders.map(order =>
-        order.id === selectedOrder.id
-          ? {
-              ...order,
-              trackingNumber: trackingInfo.trackingNumber,
-              courierName: trackingInfo.courierName,
-              updatedAt: new Date().toISOString()
-            }
-          : order
-      );
-
-      setOrders(updatedOrders);
+      await loadOrders();
       setShowTrackingModal(false);
       setTrackingInfo({ trackingNumber: '', courierName: '' });
       setSelectedOrder(null);

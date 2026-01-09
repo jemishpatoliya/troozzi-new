@@ -5,11 +5,16 @@ const path = require('path');
 const fs = require('fs');
 const mongoose = require('mongoose');
 
+const { authenticateAdmin } = require('../middleware/adminAuth');
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, '../../public/uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// Apply authentication to all routes
+router.use(authenticateAdmin);
 
 // Configure multer for banner image uploads
 const storage = multer.diskStorage({
@@ -36,20 +41,7 @@ const upload = multer({
     }
 });
 
-// Banner Schema for database storage
-const BannerSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    subtitle: { type: String, default: '' },
-    image: { type: String, required: true },
-    link: { type: String, default: '' },
-    position: { type: String, required: true },
-    active: { type: Boolean, default: true },
-    order: { type: Number, default: 0 },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
-});
-
-const Banner = mongoose.models.Banner || mongoose.model('Banner', BannerSchema);
+const Banner = require('../models/banner');
 
 // GET /api/admin/banners - Get all banners
 router.get('/', async (req, res) => {

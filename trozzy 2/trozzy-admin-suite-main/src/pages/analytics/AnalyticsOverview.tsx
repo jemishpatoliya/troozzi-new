@@ -24,6 +24,11 @@ import { exportToCSV } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '')
+  .toString()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
 type AnalyticsOverviewPayload = {
   success: boolean;
   data?: {
@@ -68,7 +73,7 @@ const AnalyticsOverview = () => {
         const to = dateRange.to ? dateRange.to.toISOString() : '';
 
         const response = await axios.get<AnalyticsOverviewPayload>(
-          `/api/admin/analytics/overview?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+          `${API_BASE_URL}/api/admin/analytics/overview?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

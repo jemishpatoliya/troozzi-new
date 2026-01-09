@@ -31,7 +31,8 @@ export async function listCatalogProducts() {
 }
 
 export async function listCatalogProductsFull() {
-  return requestJson<Product[]>("/api/products?mode=admin");
+  const response = await requestJson<{ success: boolean; items: Product[] }>("/api/products?mode=admin");
+  return response.items || [];
 }
 
 export async function listCategories() {

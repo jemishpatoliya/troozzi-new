@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
@@ -12,6 +13,7 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
+    const { token } = useAuth();
     const [items, setItems] = useState([]);
     const [totalAmount, setTotalAmount] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -145,6 +147,15 @@ export const CartProvider = ({ children }) => {
             fetchCart();
         }
     }, []);
+
+    useEffect(() => {
+        setItems([]);
+        setTotalAmount(0);
+
+        if (token) {
+            fetchCart();
+        }
+    }, [token]);
 
     const value = {
         items,

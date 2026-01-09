@@ -20,6 +20,11 @@ import {
   Cell,
 } from 'recharts';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '')
+  .toString()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
 type BiPayload = {
   success: boolean;
   data?: {
@@ -67,7 +72,7 @@ const BusinessIntelligence = () => {
         }
 
         const response = await axios.get<BiPayload>(
-          `/api/admin/analytics/bi?dateFilter=${dateFilter}&categoryFilter=${categoryFilter}`,
+          `${API_BASE_URL}/api/admin/analytics/bi?dateFilter=${dateFilter}&categoryFilter=${categoryFilter}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

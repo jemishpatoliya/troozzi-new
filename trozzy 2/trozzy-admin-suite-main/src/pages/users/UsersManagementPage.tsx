@@ -12,7 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = ((import.meta as any)?.env?.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '';
+const API_BASE_URL = (((import.meta as any)?.env?.VITE_API_BASE_URL || (import.meta as any)?.env?.VITE_API_URL || '') as string)
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
 const api = axios.create({ baseURL: API_BASE_URL });
 
 interface User {

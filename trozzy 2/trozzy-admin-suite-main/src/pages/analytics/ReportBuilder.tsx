@@ -16,6 +16,10 @@ import { cn } from '@/lib/utils';
 import { exportToCSV, generateId } from '@/lib/mockData';
 import axios from 'axios';
 
+const API_BASE_URL = ((import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '') as string)
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
 interface Report {
   id: string;
   name: string;
@@ -74,7 +78,7 @@ const ReportBuilder = () => {
     if (!token) throw new Error('Please sign in');
 
     const response = await axios.post(
-      '/api/admin/analytics/reports/generate',
+      `${API_BASE_URL}/api/admin/analytics/reports/generate`,
       { reportType: type },
       {
         headers: {

@@ -12,6 +12,9 @@ import {
 import { StatCard } from '@/components/ui/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   LineChart,
@@ -25,6 +28,11 @@ import {
   Bar,
 } from 'recharts';
 import axios from 'axios';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '')
+  .toString()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
 
 type DashboardPeriod = 'today' | 'week' | 'month';
 
@@ -59,6 +67,11 @@ const Dashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardPayload['data'] | null>(null);
 
+  const [testEmail, setTestEmail] = useState('');
+  const [testPassword, setTestPassword] = useState('');
+  const [testLoading, setTestLoading] = useState(false);
+  const [testOutput, setTestOutput] = useState<string>('');
+
   useEffect(() => {
     let cancelled = false;
 
@@ -74,7 +87,7 @@ const Dashboard = () => {
           return;
         }
 
-        const response = await axios.get<DashboardPayload>(`/api/admin/dashboard?period=${period}`,
+        const response = await axios.get<DashboardPayload>(`${API_BASE_URL}/api/admin/dashboard?period=${period}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -127,6 +140,56 @@ const Dashboard = () => {
   }, [currencyCode]);
 
   const formatCurrency = (value: number) => currencyFormatter.format(value);
+
+  const runApiTest = async () => {
+    setTestLoading(true);
+    setTestOutput('');
+
+    try {
+      const loginRes = await axios.post(`${API_BASE_URL}/api/auth/admin/login`, {
+        email: testEmail,
+        password: testPassword,
+      });
+
+      const loginPayload = loginRes.data;
+      const adminToken: string | undefined = loginPayload?.data?.token ?? loginPayload?.token;
+      if (!adminToken) {
+        throw new Error(loginPayload?.error || loginPayload?.message || 'Admin login failed');
+      }
+
+      localStorage.setItem('token', adminToken);
+
+      const headers = { Authorization: `Bearer ${adminToken}` };
+
+      const [dash, overview, realtime, advanced, bi] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/admin/dashboard?period=today`, { headers }),
+        axios.get(`${API_BASE_URL}/api/admin/analytics/overview?from=2024-12-09T08:00:00.000Z&to=2024-12-15T08:00:00.000Z`, { headers }),
+        axios.get(`${API_BASE_URL}/api/admin/analytics/realtime`, { headers }),
+        axios.get(`${API_BASE_URL}/api/admin/analytics/advanced?period=30d`, { headers }),
+        axios.get(`${API_BASE_URL}/api/admin/analytics/bi?dateFilter=30d&categoryFilter=all`, { headers }),
+      ]);
+
+      setTestOutput(
+        JSON.stringify(
+          {
+            login: { success: loginPayload?.success ?? true },
+            dashboard: dash.data,
+            overview: overview.data,
+            realtime: realtime.data,
+            advanced: advanced.data,
+            bi: bi.data,
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (e: any) {
+      const msg = e?.response?.data || e?.message || 'API test failed';
+      setTestOutput(typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2));
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -188,6 +251,46 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       )}
+
+      <Card className="glass">
+        <CardHeader>
+          <CardTitle>API Test</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="admin-email">Admin Email</Label>
+              <Input
+                id="admin-email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="admin@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="admin-password">Admin Password</Label>
+              <Input
+                id="admin-password"
+                type="password"
+                value={testPassword}
+                onChange={(e) => setTestPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button onClick={runApiTest} disabled={testLoading || !testEmail || !testPassword} className="w-full">
+                {testLoading ? 'Testing...' : 'Login & Test APIs'}
+              </Button>
+            </div>
+          </div>
+
+          {testOutput ? (
+            <pre className="max-h-[320px] overflow-auto rounded-md bg-muted p-3 text-xs">
+              {testOutput}
+            </pre>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="glass">

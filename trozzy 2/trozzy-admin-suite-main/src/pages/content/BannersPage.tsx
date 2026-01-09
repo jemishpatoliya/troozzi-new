@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,8 +7,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Plus, Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import axios from 'axios';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '')
+  .toString()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
 
 const BANNER_POSITIONS = [
   { value: 'home_hero', label: 'Home Hero Slider' },
@@ -30,11 +36,12 @@ interface Banner {
   updatedAt: string;
 }
 
-const mockBanners: Banner[] = [];
-
 const BannersPage = () => {
   const { toast } = useToast();
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -45,33 +52,74 @@ const BannersPage = () => {
     order: 0,
   });
 
-  const banners = mockBanners;
+  const fetchBanners = async () => {
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/admin/banners`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setBanners(response.data.banners.map((b: any) => ({
+          ...b,
+          id: b._id,
+          imageUrl: b.image
+        })));
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch banners.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBanners();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // TODO: Implement API call
-      console.log('Submit banner:', formData);
+      setIsSubmitting(true);
+      const token = localStorage.getItem('token');
+      const payload = {
+        title: formData.title,
+        image: formData.imageUrl,
+        link: formData.link,
+        position: formData.position,
+        active: formData.active,
+        order: formData.order
+      };
+
+      if (editingId) {
+        await axios.put(`${API_BASE_URL}/api/admin/banners/${editingId}`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await axios.post(`${API_BASE_URL}/api/admin/banners`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+
       toast({
         title: editingId ? 'Banner updated' : 'Banner created',
         description: 'Banner has been saved successfully.',
       });
       setIsModalOpen(false);
-      setEditingId(null);
-      setFormData({
-        title: '',
-        imageUrl: '',
-        link: '',
-        position: 'home_hero',
-        active: true,
-        order: 0,
-      });
+      resetForm();
+      fetchBanners();
     } catch (error) {
       toast({
         title: 'Error',
         description: 'Failed to save banner.',
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -89,13 +137,17 @@ const BannersPage = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this banner?')) return;
     try {
-      // TODO: Implement API call
-      console.log('Delete banner:', id);
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_BASE_URL}/api/admin/banners/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       toast({
         title: 'Banner deleted',
         description: 'Banner has been removed successfully.',
       });
+      fetchBanners();
     } catch (error) {
       toast({
         title: 'Error',
@@ -212,7 +264,8 @@ const BannersPage = () => {
                 >
                   Cancel
                 </Button>
-                <Button type="submit">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   {editingId ? 'Update' : 'Create'}
                 </Button>
               </div>
@@ -222,7 +275,11 @@ const BannersPage = () => {
       </div>
 
       <div className="grid gap-4">
-        {banners.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : banners.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
