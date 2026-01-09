@@ -43,7 +43,7 @@ router.get("/overview", authenticateAdmin, async (req: Request, res: Response) =
       return formatDayLabel(day);
     });
 
-    const [revenueAgg, ordersAgg] = await Promise.all([
+    const [revenueAgg, ordersAgg, topProductsAgg] = await Promise.all([
       OrderModel.aggregate([
         {
           $match: {
@@ -51,23 +51,28 @@ router.get("/overview", authenticateAdmin, async (req: Request, res: Response) =
             status: { $in: [...REVENUE_STATUSES] },
           },
         },
-        {
-          $addFields: {
-            day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          },
-        },
+        { $addFields: { day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } } } },
         { $group: { _id: "$day", total: { $sum: "$total" } } },
         { $sort: { _id: 1 } },
       ]),
       OrderModel.aggregate([
         { $match: { createdAt: { $gte: from, $lt: to } } },
-        {
-          $addFields: {
-            day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          },
-        },
+        { $addFields: { day: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } } } },
         { $group: { _id: "$day", count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
+      ]),
+      OrderModel.aggregate([
+        { $match: { createdAt: { $gte: from, $lt: to } } },
+        { $unwind: "$items" },
+        {
+          $group: {
+            _id: "$items.name",
+            sales: { $sum: "$items.quantity" },
+            revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
+          },
+        },
+        { $sort: { sales: -1 } },
+        { $limit: 5 },
       ]),
     ]);
 
@@ -79,57 +84,44 @@ router.get("/overview", authenticateAdmin, async (req: Request, res: Response) =
       ordersAgg.map((r: { _id: string; count: number }) => [r._id, Number(r.count ?? 0)]),
     );
 
-    const sales = series.map((date) => ({ date, amount: revenueByDay.get(date) ?? 0 }));
+    const revenueByDayChart = series.map((date) => ({
+      date,
+      revenue: revenueByDay.get(date) ?? 0,
+    }));
 
-    const visitors = series.map((date) => {
-      const ordersForDay = ordersByDay.get(date) ?? 0;
-      const approxVisitors = Math.max(ordersForDay * 25, ordersForDay === 0 ? 0 : 50);
-      return { date, count: approxVisitors };
-    });
-
-    const pageViews = series.map((date) => {
-      const v = visitors.find((x) => x.date === date)?.count ?? 0;
-      const approxViews = Math.round(v * 1.35);
-      return { date, views: approxViews };
-    });
-
-    const topProductsAgg = await OrderModel.aggregate([
-      { $match: { createdAt: { $gte: from, $lt: to } } },
-      { $unwind: "$items" },
-      {
-        $group: {
-          _id: "$items.name",
-          sales: { $sum: "$items.quantity" },
-          revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } },
-        },
-      },
-      { $sort: { sales: -1 } },
-      { $limit: 5 },
-    ]);
-
-    const topProducts = topProductsAgg.map((p: any) => ({
+    const productPerformance = topProductsAgg.map((p: any) => ({
       name: String(p._id ?? ""),
       sales: Number(p.sales ?? 0),
       revenue: Number(p.revenue ?? 0),
     }));
 
-    const totalVisitors = visitors.reduce((sum, v) => sum + v.count, 0);
-    const totalOrders = visitors.reduce((sum, v) => sum + (ordersByDay.get(v.date) ?? 0), 0);
-    const conversionRate = totalVisitors ? Math.min(9.9, Math.max(0.1, (totalOrders / Math.max(1, totalVisitors)) * 100)) : 0;
+    const totalRevenue = revenueByDayChart.reduce((sum, d) => sum + (d.revenue ?? 0), 0);
+    const totalOrders = series.reduce((sum, date) => sum + (ordersByDay.get(date) ?? 0), 0);
 
-    const bounceRate = 35 + (daysCount <= 2 ? 5 : daysCount <= 7 ? 3 : 2);
-    const avgSessionDuration = 180 + (daysCount <= 2 ? 15 : daysCount <= 7 ? 25 : 35);
+    // Visit/session/page-view tracking does not exist in this project; return safe defaults.
+    const metrics = {
+      pageViews: 0,
+      uniqueVisitors: 0,
+      conversionRate: 0,
+      bounceRate: 0,
+    };
+
+    const charts = {
+      trafficTrend: [] as Array<{ date: string; visitors: number }>,
+      revenueByDay: revenueByDayChart,
+      productPerformance,
+    };
 
     res.json({
       success: true,
       data: {
-        pageViews,
-        sales,
-        visitors,
-        topProducts,
-        conversionRate: Number(conversionRate.toFixed(2)),
-        bounceRate: Number(bounceRate.toFixed(1)),
-        avgSessionDuration,
+        range: { from: from.toISOString(), to: to.toISOString() },
+        metrics,
+        charts,
+        totals: {
+          orders: totalOrders,
+          revenue: Number(totalRevenue.toFixed(2)),
+        },
       },
     });
   } catch (error) {

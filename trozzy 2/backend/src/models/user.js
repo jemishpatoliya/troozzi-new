@@ -34,6 +34,14 @@ const userSchema = new mongoose.Schema({
         trim: true,
         maxlength: [15, 'Phone number cannot exceed 15 characters']
     },
+    address: {
+        line1: { type: String, trim: true, default: '' },
+        line2: { type: String, trim: true, default: '' },
+        city: { type: String, trim: true, default: '' },
+        state: { type: String, trim: true, default: '' },
+        postalCode: { type: String, trim: true, default: '' },
+        country: { type: String, trim: true, default: '' },
+    },
     role: {
         type: String,
         enum: ['user'], // ONLY user role allowed

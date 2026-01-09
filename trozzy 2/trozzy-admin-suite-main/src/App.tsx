@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AdminLayout } from "./components/layout/AdminLayout";
-import { isAuthenticated, initializeMockData } from "./lib/mockData";
 import { CartProvider } from "./features/storefront/cart";
 import SignInPage from "./pages/auth/SignInPage";
 import Dashboard from "./pages/Dashboard";
@@ -46,14 +45,11 @@ import ShopOrderSuccessPage from "./pages/shop/ShopOrderSuccessPage";
 
 const queryClient = new QueryClient();
 
-// Initialize data on app load
-initializeMockData();
-
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  // Temporarily bypass authentication for testing
-  // if (!isAuthenticated()) {
-  //   return <Navigate to="/sign-in" replace />;
-  // }
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return <Navigate to="/sign-in" replace />;
+  }
   return <>{children}</>;
 };
 

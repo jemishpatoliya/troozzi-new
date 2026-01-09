@@ -16,14 +16,13 @@ const adminProductsRouter = require('./src/routes/admin-products');
 const adminCategoriesRouter = require('./src/routes/admin-categories');
 const adminBannersRouter = require('./src/routes/admin-banners');
 const adminDashboardRouter = require('./src/routes/admin-dashboard');
-const adminAnalyticsRouter = require('./src/routes/admin-analytics');
+const adminUsersRouter = require('./src/routes/admin-users');
 const authRouter = require('./src/routes/auth');
 const adminAuthRouter = require('./src/routes/adminAuth');
 const userAuthRouter = require('./src/routes/userAuth');
 const wishlistRouter = require('./src/routes/wishlist');
 const cartRouter = require('./src/routes/cart');
-const paymentsRouter = require('./src/routes/payments');
-const ordersRouter = require('./src/routes/orders');
+const ordersRouter = require('./src/routes/simple-orders');
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -32,7 +31,9 @@ const MONGODB_URI = process.env.MONGODB_URI;
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === 'production' ? 100 : 2000, // higher limit in dev to avoid 429 during admin actions
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Middleware
@@ -60,14 +61,13 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/admin/products', adminProductsRouter);
 app.use('/api/admin/categories', adminCategoriesRouter);
 app.use('/api/admin/banners', adminBannersRouter);
-app.use('/api/admin/analytics', adminAnalyticsRouter);
+app.use('/api/admin/users', adminUsersRouter);
 app.use('/api/admin', adminDashboardRouter);
 app.use('/api/auth/admin', adminAuthRouter);
 app.use('/api/auth/user', userAuthRouter);
 app.use('/api/auth', authRouter); // Keep for backward compatibility
 app.use('/api/wishlist', wishlistRouter);
 app.use('/api/cart', cartRouter);
-app.use('/api/payments', paymentsRouter);
 app.use('/api/orders', ordersRouter);
 
 // Health check

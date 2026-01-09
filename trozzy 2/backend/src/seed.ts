@@ -19,7 +19,13 @@ async function main() {
     throw new Error("Missing MONGODB_URI env var");
   }
 
+  console.log("✅ Seed disabled: not inserting any demo data");
+  process.exit(0);
+
   await connectDb(MONGODB_URI);
+
+  console.log("✅ Seed disabled: not inserting demo products/categories");
+  process.exit(0);
 
   const today = new Date().toISOString().slice(0, 10);
   const nowIso = new Date().toISOString();

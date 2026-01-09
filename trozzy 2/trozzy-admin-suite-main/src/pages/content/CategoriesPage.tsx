@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Plus, Edit2, Trash2, FolderTree, Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCategoriesQuery, useCreateCategoryMutation, useDeleteCategoryMutation, useUpdateCategoryMutation } from '@/features/products/queries';
+import { uploadImageQueued } from '@/lib/uploadQueue';
 
 const CategoriesPage = () => {
   const { toast } = useToast();
@@ -74,28 +75,9 @@ const CategoriesPage = () => {
 
     setIsUploading(true);
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append('image', file);
-
-      const response = await fetch('/api/upload/image', {
-        method: 'POST',
-        body: uploadFormData,
-      });
-
-      if (!response.ok) {
-        let message = 'Upload failed';
-        try {
-          const err = await response.json();
-          message = err?.message || err?.error || message;
-        } catch {
-          // ignore
-        }
-        throw new Error(message);
-      }
-
-      const data = await response.json();
-      setFormData({ ...formData, imageUrl: data.url });
-      setImagePreview(data.url);
+      const url = await uploadImageQueued(file, { maxRetries: 3 });
+      setFormData({ ...formData, imageUrl: url });
+      setImagePreview(url);
       toast({ title: 'Success', description: 'Image uploaded successfully' });
     } catch (error) {
       toast({
@@ -104,6 +86,8 @@ const CategoriesPage = () => {
         variant: 'destructive'
       });
     } finally {
+      // Allow re-selecting the same file without double-trigger issues.
+      e.target.value = '';
       setIsUploading(false);
     }
   };

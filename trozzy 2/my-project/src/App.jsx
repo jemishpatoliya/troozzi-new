@@ -172,6 +172,8 @@ const AboutUs = lazy(() => import('./Pages/AboutUs'));
 const HelpCenter = lazy(() => import('./Pages/HelpCenter'));
 const OrderTracking = lazy(() => import('./Pages/OrderTracking'));
 const PaymentGateway = lazy(() => import('./components/PaymentGateway'));
+const Profile = lazy(() => import('./Pages/Profile'));
+const Orders = lazy(() => import('./Pages/Orders'));
 
 // Create MyContext for backward compatibility
 export const MyContext = createContext();
@@ -275,6 +277,22 @@ function App() {
                                                 element={
                                                     <ProtectedRoute>
                                                         <WishlistPage />
+                                                    </ProtectedRoute>
+                                                }
+                                            />
+                                            <Route
+                                                path="/profile"
+                                                element={
+                                                    <ProtectedRoute>
+                                                        <Profile />
+                                                    </ProtectedRoute>
+                                                }
+                                            />
+                                            <Route
+                                                path="/orders"
+                                                element={
+                                                    <ProtectedRoute>
+                                                        <Orders />
                                                     </ProtectedRoute>
                                                 }
                                             />
