@@ -19,6 +19,13 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const storedUserRaw = localStorage.getItem('user');
+  const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
+  const displayName = storedUser?.firstName
+    ? `${storedUser.firstName}${storedUser?.lastName ? ` ${storedUser.lastName}` : ''}`
+    : 'Admin';
+  const displayEmail = storedUser?.email || 'admin@trozzy.com';
+
   const toggleDarkMode = () => {
     setIsDarkMode(!isDarkMode);
     document.documentElement.classList.toggle('dark');
@@ -32,10 +39,10 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('trozzy_auth_user');
-    localStorage.removeItem('trozzy_logged_in_user');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     toast({ title: 'Logged Out', description: 'You have been logged out successfully' });
-    navigate('/sign-in');
+    navigate('/sign-in', { replace: true });
   };
 
   const handleProfile = () => {
@@ -101,8 +108,8 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
                   <AvatarFallback>AD</AvatarFallback>
                 </Avatar>
                 <div className="hidden md:flex flex-col items-start">
-                  <span className="text-sm font-medium">Admin User</span>
-                  <span className="text-xs text-muted-foreground">admin@trozzy.com</span>
+                  <span className="text-sm font-medium">{displayName}</span>
+                  <span className="text-xs text-muted-foreground">{displayEmail}</span>
                 </div>
               </Button>
             </DropdownMenuTrigger>

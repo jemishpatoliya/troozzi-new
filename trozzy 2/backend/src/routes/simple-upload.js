@@ -4,6 +4,7 @@ const multer = require('multer');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { authenticateAdmin, requireAdmin } = require('../middleware/adminAuth');
 
 const AWS_REGION = process.env.AWS_REGION;
 const AWS_S3_BUCKET = process.env.AWS_S3_BUCKET;
@@ -24,6 +25,41 @@ const UploadSchema = new mongoose.Schema(
 );
 
 const Upload = mongoose.models.Upload || mongoose.model('Upload', UploadSchema);
+
+router.get('/list', authenticateAdmin, requireAdmin, async (req, res) => {
+    try {
+        const folder = String(req.query?.folder ?? '').trim();
+        const folderSafe = folder && /^[a-zA-Z0-9_-]+$/.test(folder) ? folder : '';
+
+        const filter = folderSafe ? { key: new RegExp(`^uploads/${folderSafe}/`) } : {};
+
+        const docs = await Upload.find(filter)
+            .sort({ createdAt: -1 })
+            .limit(500)
+            .lean();
+
+        res.json(
+            docs.map((d) => {
+                const key = String(d.key ?? '');
+                const parts = key.split('/');
+                const derivedFolder = parts.length >= 2 && parts[0] === 'uploads' ? parts[1] : '';
+                return {
+                    id: String(d._id),
+                    key,
+                    url: d.url,
+                    contentType: d.contentType || '',
+                    size: Number(d.size || 0),
+                    originalName: d.originalName || '',
+                    createdAt: d.createdAt,
+                    folder: derivedFolder,
+                };
+            })
+        );
+    } catch (error) {
+        console.error('List uploads error:', error);
+        res.status(500).json({ success: false, message: 'Failed to list uploads' });
+    }
+});
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -58,7 +94,9 @@ router.post('/image', upload.single('image'), async (req, res) => {
 
         const ext = (req.file.originalname || '').split('.').pop() || 'bin';
         const random = crypto.randomBytes(12).toString('hex');
-        const key = `uploads/${Date.now()}-${random}.${ext}`;
+        const folder = String(req.query?.folder ?? '').trim();
+        const folderSafe = folder && /^[a-zA-Z0-9_-]+$/.test(folder) ? folder : 'misc';
+        const key = `uploads/${folderSafe}/${Date.now()}-${random}.${ext}`;
 
         await s3.send(
             new PutObjectCommand({

@@ -175,6 +175,74 @@ router.get('/me', auth, async (req, res) => {
     });
 });
 
+// PUT /api/auth/me - Update current user profile/address
+router.put('/me', auth, async (req, res) => {
+    try {
+        const allowed = ['firstName', 'lastName', 'phone', 'address'];
+        const next = {};
+        for (const k of allowed) {
+            if (req.body?.[k] !== undefined) next[k] = req.body[k];
+        }
+
+        if (next.address && typeof next.address === 'object') {
+            const a = next.address;
+            next.address = {
+                line1: a.line1 ?? a.addressLine1 ?? a.line_1 ?? '',
+                line2: a.line2 ?? a.addressLine2 ?? a.line_2 ?? '',
+                city: a.city ?? '',
+                state: a.state ?? '',
+                postalCode: a.postalCode ?? a.pincode ?? a.zip ?? '',
+                country: a.country ?? '',
+            };
+        }
+
+        const updated = await UserModel.findByIdAndUpdate(
+            req.user._id,
+            { $set: next },
+            { new: true, runValidators: true, projection: { password: 0 } }
+        );
+
+        res.json({ success: true, data: updated });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({ success: false, message: 'Failed to update profile' });
+    }
+});
+
+// PUT /api/auth/change-password - Change password
+router.put('/change-password', auth, async (req, res) => {
+    try {
+        const currentPassword = String(req.body?.currentPassword ?? '');
+        const newPassword = String(req.body?.newPassword ?? '');
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+        }
+
+        const user = await UserModel.findById(req.user._id).select('+password');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const ok = await user.comparePassword(currentPassword);
+        if (!ok) {
+            return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        res.json({ success: true, message: 'Password updated successfully' });
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({ success: false, message: 'Failed to change password' });
+    }
+});
+
 // POST /api/auth/logout - Logout user (client-side token removal)
 router.post('/logout', auth, (req, res) => {
     res.json({

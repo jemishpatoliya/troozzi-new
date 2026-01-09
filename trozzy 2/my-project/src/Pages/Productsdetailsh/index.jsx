@@ -38,22 +38,43 @@ const Productsdetailsh = () => {
 
     useEffect(() => {
         let cancelled = false;
-        async function load() {
+        async function load({ silent = false } = {}) {
             if (!id) return;
             try {
-                setLoading(true);
-                setError('');
+                if (!silent) {
+                    setLoading(true);
+                    setError('');
+                }
                 const data = await fetchProductById(id, { mode: 'public' });
                 if (!cancelled) setProduct(data);
             } catch (e) {
-                if (!cancelled) setError('Failed to load product');
+                if (!cancelled && !silent) setError('Failed to load product');
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled && !silent) setLoading(false);
             }
         }
-        load();
+
+        void load({ silent: false });
+
+        const onFocus = () => {
+            void load({ silent: true });
+        };
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') void load({ silent: true });
+        };
+
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onVisibility);
+
+        const intervalId = window.setInterval(() => {
+            void load({ silent: true });
+        }, 5000);
+
         return () => {
             cancelled = true;
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisibility);
+            window.clearInterval(intervalId);
         };
     }, [id]);
 

@@ -110,10 +110,6 @@ const menuGroups: MenuGroup[] = [
         { title: 'Rejected Reviews', url: '/reviews/rejected', icon: Trash2 },
         { title: 'Review Analytics', url: '/reviews/analytics', icon: BarChart3 },
       ]},
-      { title: 'Customer Feedback', url: '/feedback', icon: MessageSquare },
-      { title: 'Customer Support', url: '/support', icon: Brain },
-      { title: 'Testimonials', url: '/testimonials', icon: MessageSquare },
-      { title: 'FAQ', url: '/faq', icon: MessageSquare },
     ],
   },
   {

@@ -1,5 +1,7 @@
 import { api } from "./client";
 
+import { fetchProductById } from "./catalog";
+
 // Questions & Answers API
 export async function fetchProductQuestions(productId, { page = 1, limit = 10 } = {}) {
     const params = { page, limit };
@@ -29,8 +31,30 @@ export async function upvoteAnswer(answerId) {
 
 // Product Details API
 export async function fetchProductDetails(productId) {
-    const res = await api.get(`/product-details/${productId}/details`);
-    return res.data;
+    const [detailsRes, product] = await Promise.all([
+        api.get(`/product-details/${productId}/details`),
+        fetchProductById(productId, { mode: "public" }),
+    ]);
+
+    const details = detailsRes.data;
+    if (!product) return details;
+
+    return {
+        ...details,
+        id: product.id ?? details?.id,
+        name: product.name ?? details?.name,
+        description: product.description ?? details?.description,
+        price: product.price ?? details?.price,
+        image: product.image ?? details?.image,
+        galleryImages: product.galleryImages ?? details?.galleryImages,
+        brand: product.brand ?? details?.brand,
+        category: product.category ?? details?.category,
+        stock: product.stock ?? details?.stock,
+        metaTitle: product.metaTitle ?? details?.metaTitle,
+        metaDescription: product.metaDescription ?? details?.metaDescription,
+        weight: product.weight ?? details?.weight,
+        dimensions: product.dimensions ?? details?.dimensions,
+    };
 }
 
 export async function fetchProductReviews(productId, { page = 1, limit = 10, sort = 'recent' } = {}) {

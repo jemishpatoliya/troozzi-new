@@ -24,15 +24,15 @@ const SignInPage = () => {
       const response = await axios.post('/api/auth/admin/login', { email, password });
       const payload = response.data;
       const token: string | undefined = payload?.data?.token ?? payload?.token;
-      const user = payload?.data?.user ?? payload?.user;
+      const admin = payload?.data?.admin ?? payload?.admin ?? payload?.data?.user ?? payload?.user;
 
       if (!token) {
         throw new Error(payload?.error || payload?.message || 'Login failed');
       }
 
       localStorage.setItem('token', token);
-      if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+      if (admin) {
+        localStorage.setItem('user', JSON.stringify(admin));
       }
 
       toast({ title: 'Welcome back!', description: 'Logged in successfully' });

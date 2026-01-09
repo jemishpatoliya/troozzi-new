@@ -13,7 +13,6 @@ import { FileText, Plus, Calendar as CalendarIcon, Download, Trash2, Play, Edit,
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { exportToCSV, generateId } from '@/lib/mockData';
 import axios from 'axios';
 
 interface Report {
@@ -28,13 +27,51 @@ interface Report {
   data?: any[];
 }
 
+type ReportTypesPayload = {
+  success: boolean;
+  data?: {
+    reportTypes: { id: string; label: string }[];
+    metrics: { id: string; label: string }[];
+  };
+  message?: string;
+  error?: string;
+};
+
+type ReportSavedPayload = {
+  success: boolean;
+  data?: Report[];
+  message?: string;
+  error?: string;
+};
+
+type ReportGeneratePayload = {
+  success: boolean;
+  data?: {
+    reportMeta: {
+      name: string;
+      type: string;
+      dateFrom: string;
+      dateTo: string;
+      metrics: string[];
+    };
+    metrics: Record<string, number>;
+    rows: any[];
+    meta?: {
+      notices?: string[];
+      supported?: Record<string, boolean>;
+    };
+  };
+  message?: string;
+  error?: string;
+};
+
 const ReportBuilder = () => {
   const { toast } = useToast();
   const [reportName, setReportName] = useState('');
   const [reportType, setReportType] = useState('sales');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: new Date(2024, 11, 1),
-    to: new Date(2024, 11, 15),
+    from: new Date(new Date().getTime() - 29 * 24 * 60 * 60 * 1000),
+    to: new Date(),
   });
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['revenue', 'orders']);
   const [savedReports, setSavedReports] = useState<Report[]>([]);
@@ -42,40 +79,104 @@ const ReportBuilder = () => {
   const [viewingReport, setViewingReport] = useState<Report | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [types, setTypes] = useState<{ id: string; label: string }[]>([]);
+  const [metricOptions, setMetricOptions] = useState<{ id: string; label: string }[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  // Load reports from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('trozzy_reports');
-    if (saved) {
-      setSavedReports(JSON.parse(saved));
-    } else {
-      // Initialize with default reports
-      const defaultReports: Report[] = [
-        { id: '1', name: 'Monthly Sales Report', type: 'Sales', created: '2024-12-10', status: 'Ready', metrics: ['revenue', 'orders'], dateFrom: '2024-12-01', dateTo: '2024-12-10', data: [] },
-        { id: '2', name: 'Q4 Performance', type: 'Performance', created: '2024-12-08', status: 'Ready', metrics: ['revenue', 'conversion'], dateFrom: '2024-10-01', dateTo: '2024-12-08', data: [] },
-        { id: '3', name: 'Customer Insights', type: 'Customer', created: '2024-12-05', status: 'Ready', metrics: ['customers', 'avgOrder'], dateFrom: '2024-11-01', dateTo: '2024-12-05', data: [] },
-      ];
-      setSavedReports(defaultReports);
-      localStorage.setItem('trozzy_reports', JSON.stringify(defaultReports));
-    }
+    let cancelled = false;
+    const load = async () => {
+      setNotice(null);
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setNotice('Please sign in to view analytics.');
+          return;
+        }
+
+        const cacheBust = Date.now();
+        const [typesRes, savedRes] = await Promise.all([
+          axios.get<ReportTypesPayload>(`/api/admin/analytics/reports/types?_t=${cacheBust}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+            },
+          }),
+          axios.get<ReportSavedPayload>(`/api/admin/analytics/reports/saved?_t=${cacheBust}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+            },
+          }),
+        ]);
+
+        const typesPayload = typesRes.data;
+        const savedPayload = savedRes.data;
+
+        if (!typesPayload?.success || !typesPayload?.data) {
+          throw new Error(typesPayload?.message || typesPayload?.error || 'Failed to load report types');
+        }
+
+        if (!cancelled) {
+          setTypes(typesPayload.data.reportTypes ?? []);
+          setMetricOptions(typesPayload.data.metrics ?? []);
+        }
+
+        if (savedPayload?.success) {
+          if (!cancelled) setSavedReports(savedPayload.data ?? []);
+          if (!cancelled) setNotice(savedPayload.message ?? null);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setTypes([]);
+          setMetricOptions([]);
+          setSavedReports([]);
+          setNotice(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Unable to fetch report data');
+        }
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const metrics = [
-    { id: 'revenue', label: 'Revenue' },
-    { id: 'orders', label: 'Orders' },
-    { id: 'customers', label: 'Customers' },
-    { id: 'products', label: 'Products Sold' },
-    { id: 'conversion', label: 'Conversion Rate' },
-    { id: 'avgOrder', label: 'Average Order Value' },
-  ];
+  const downloadCsv = (rows: Record<string, string | number>[], filename: string) => {
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const toCell = (value: string | number) => {
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'number') return String(value);
+      return escape(String(value));
+    };
+    const csv = [headers.join(','), ...rows.map((r) => headers.map((h) => toCell(r[h] as any)).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   async function generateReportData(type: string) {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Please sign in');
 
-    const response = await axios.post(
+    const response = await axios.post<ReportGeneratePayload>(
       '/api/admin/analytics/reports/generate',
-      { reportType: type },
+      {
+        reportType: type,
+        reportName,
+        metrics: selectedMetrics,
+        dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
+        dateTo: dateRange.to ? dateRange.to.toISOString() : null,
+      },
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -84,7 +185,7 @@ const ReportBuilder = () => {
     );
 
     const payload = response.data;
-    if (!payload?.success || !Array.isArray(payload?.data)) {
+    if (!payload?.success || !payload?.data) {
       throw new Error(payload?.message || payload?.error || 'Failed to generate report');
     }
 
@@ -95,11 +196,6 @@ const ReportBuilder = () => {
     setSelectedMetrics((prev) =>
       prev.includes(metricId) ? prev.filter((m) => m !== metricId) : [...prev, metricId]
     );
-  };
-
-  const saveReports = (reports: Report[]) => {
-    setSavedReports(reports);
-    localStorage.setItem('trozzy_reports', JSON.stringify(reports));
   };
 
   const handleCreateReport = () => {
@@ -113,20 +209,19 @@ const ReportBuilder = () => {
     generateReportData(reportType)
       .then((data) => {
         const newReport: Report = {
-          id: generateId(),
-          name: reportName,
-          type: reportType.charAt(0).toUpperCase() + reportType.slice(1),
+          id: 'preview',
+          name: data.reportMeta?.name || reportName,
+          type: data.reportMeta?.type || reportType,
           created: format(new Date(), 'yyyy-MM-dd'),
           status: 'Ready',
-          metrics: selectedMetrics,
-          dateFrom: dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : '',
-          dateTo: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : '',
-          data,
+          metrics: data.reportMeta?.metrics ?? selectedMetrics,
+          dateFrom: data.reportMeta?.dateFrom ? String(data.reportMeta.dateFrom).slice(0, 10) : (dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : ''),
+          dateTo: data.reportMeta?.dateTo ? String(data.reportMeta.dateTo).slice(0, 10) : (dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : ''),
+          data: Array.isArray(data.rows) ? data.rows : [],
         };
 
-        saveReports([newReport, ...savedReports]);
-        setReportName('');
-        toast({ title: 'Report Created', description: `${reportName} has been created successfully.` });
+        setViewingReport(newReport);
+        toast({ title: 'Report Generated', description: 'Report generated from database data' });
       })
       .catch((error: any) => {
         toast({ title: 'Error', description: error?.message || 'Failed to generate report', variant: 'destructive' });
@@ -137,21 +232,13 @@ const ReportBuilder = () => {
   };
 
   const handleUpdateReport = () => {
-    if (!editingReport) return;
-    
-    const updated = savedReports.map(r => 
-      r.id === editingReport.id ? editingReport : r
-    );
-    saveReports(updated);
     setEditingReport(null);
-    toast({ title: 'Report Updated', description: 'Report has been updated successfully.' });
+    toast({ title: 'Not available', description: 'Saved reports are not available', variant: 'destructive' });
   };
 
   const handleDeleteReport = (id: string) => {
-    const updated = savedReports.filter((r) => r.id !== id);
-    saveReports(updated);
     setDeleteConfirmId(null);
-    toast({ title: 'Report Deleted', description: 'The report has been deleted.' });
+    toast({ title: 'Not available', description: 'Saved reports are not available', variant: 'destructive' });
   };
 
   const handleDownloadReport = (report: Report) => {
@@ -161,7 +248,7 @@ const ReportBuilder = () => {
     }
     
     const filename = `${report.name.replace(/\s+/g, '-').toLowerCase()}-${report.created}.csv`;
-    exportToCSV(report.data, filename);
+    downloadCsv(report.data as any[], filename);
     toast({ title: 'Downloaded', description: `${filename} downloaded successfully` });
   };
 
@@ -175,7 +262,12 @@ const ReportBuilder = () => {
     generateReportData(reportType)
       .then((data) => {
         const today = format(new Date(), 'yyyy-MM-dd');
-        exportToCSV(data, `report-preview-${today}.csv`);
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        if (!rows.length) {
+          toast({ title: 'No data', description: 'No data available for the selected range', variant: 'destructive' });
+          return;
+        }
+        downloadCsv(rows, `report-preview-${today}.csv`);
         toast({ title: 'Exported', description: 'Report preview exported as CSV' });
       })
       .catch((error: any) => {
@@ -223,10 +315,11 @@ const ReportBuilder = () => {
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sales">Sales Report</SelectItem>
-                    <SelectItem value="performance">Performance Report</SelectItem>
-                    <SelectItem value="customer">Customer Report</SelectItem>
-                    <SelectItem value="inventory">Inventory Report</SelectItem>
+                    {types.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -266,7 +359,7 @@ const ReportBuilder = () => {
             <div className="space-y-2">
               <Label>Metrics to Include</Label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {metrics.map((metric) => (
+                {metricOptions.map((metric) => (
                   <div
                     key={metric.id}
                     className="flex items-center space-x-2 p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors"
@@ -304,6 +397,7 @@ const ReportBuilder = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-96 overflow-auto">
+              {notice ? <p className="text-xs text-muted-foreground">{notice}</p> : null}
               {savedReports.map((report) => (
                 <div
                   key={report.id}

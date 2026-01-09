@@ -65,10 +65,13 @@ const AdvancedAnalytics = () => {
           return;
         }
 
-        const response = await axios.get<AdvancedAnalyticsPayload>(`/api/admin/analytics/advanced?period=${period}`,
+        const cacheBust = Date.now();
+        const response = await axios.get<AdvancedAnalyticsPayload>(`/api/admin/analytics/advanced?period=${period}&_t=${cacheBust}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
             },
           },
         );
@@ -224,6 +227,28 @@ const AdvancedAnalytics = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {revenueBreakdown.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No data available</div>
+          ) : (
+            <div className="mb-6">
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={revenueBreakdown}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="category" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number) => [`$${Number(value ?? 0).toLocaleString()}`, 'Revenue']}
+                  />
+                  <Bar dataKey="value" fill="hsl(142, 76%, 36%)" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
           <div className="grid md:grid-cols-4 gap-4">
             {revenueBreakdown.map((item) => (
               <div key={item.category} className="p-4 rounded-xl bg-muted/50 space-y-2">
