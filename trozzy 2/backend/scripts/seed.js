@@ -8,6 +8,9 @@ const { ProductModel } = require('../src/models/product');
 
 const seedData = async () => {
     try {
+        console.log('✅ Seed disabled: not inserting any demo data');
+        process.exit(0);
+
         // Connect to MongoDB
         await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/trozzy-reviews');
         console.log('✅ Connected to MongoDB');
@@ -119,6 +122,10 @@ const seedData = async () => {
         // Insert sample reviews
         await Review.insertMany(sampleReviews);
         console.log('📝 Sample reviews created successfully');
+
+        await mongoose.connection.close();
+        console.log('✅ Seed completed (reviews only). Skipping categories/products.');
+        process.exit(0);
 
         // Verify categories were actually inserted
         const verifyCount = await CategoryModel.countDocuments();

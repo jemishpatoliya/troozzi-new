@@ -5,19 +5,62 @@ import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Search, AlertTriangle, Package, Plus, Minus } from 'lucide-react';
-import { initializeMockData, getProducts, setProducts, Product, addAuditLog } from '@/lib/mockData';
 import { useToast } from '@/hooks/use-toast';
+import axios from 'axios';
+
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:5050/api';
+const api = axios.create({ baseURL: String(API_BASE_URL).replace(/\/$/, '') });
+
+type InventoryProduct = {
+  id: string;
+  name: string;
+  sku: string;
+  category?: string;
+  stock: number;
+  image?: string;
+};
 
 const InventoryPage = () => {
   const { toast } = useToast();
-  const [products, setProductsState] = useState<Product[]>([]);
+  const [products, setProductsState] = useState<InventoryProduct[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAmount, setBulkAmount] = useState('');
 
   useEffect(() => {
-    initializeMockData();
-    setProductsState(getProducts());
+    const load = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setProductsState([]);
+          return;
+        }
+
+        const res = await api.get('/products?mode=admin', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const arr = Array.isArray(res.data) ? res.data : [];
+        setProductsState(
+          arr.map((p: any) => ({
+            id: String(p._id ?? p.id),
+            name: String(p.name ?? ''),
+            sku: String(p.sku ?? ''),
+            category: String(p.category ?? ''),
+            stock: Number(p.stock ?? 0),
+            image: String(p.image ?? ''),
+          })),
+        );
+      } catch (e: any) {
+        setProductsState([]);
+        toast({
+          title: 'Error',
+          description: e?.response?.data?.message || e?.message || 'Failed to load inventory',
+          variant: 'destructive',
+        });
+      }
+    };
+    load();
   }, []);
 
   const filteredProducts = products.filter((product) =>
@@ -29,24 +72,8 @@ const InventoryPage = () => {
   const outOfStockProducts = products.filter((p) => p.stock === 0);
   const totalStock = products.reduce((sum, p) => sum + p.stock, 0);
 
-  const handleStockUpdate = (productId: string, change: number) => {
-    const updated = products.map((p) => {
-      if (p.id === productId) {
-        const newStock = Math.max(0, p.stock + change);
-        return { ...p, stock: newStock };
-      }
-      return p;
-    });
-    setProductsState(updated);
-    setProducts(updated);
-    addAuditLog({ 
-      user: 'Admin User', 
-      action: 'Updated inventory', 
-      module: 'Inventory', 
-      timestamp: new Date().toISOString(), 
-      details: `Changed stock by ${change > 0 ? '+' : ''}${change}` 
-    });
-    toast({ title: 'Success', description: 'Stock updated' });
+  const handleStockUpdate = (_productId: string, _change: number) => {
+    toast({ title: 'Not available', description: 'Live stock update API is not configured yet.', variant: 'destructive' });
   };
 
   const handleBulkUpdate = () => {
@@ -56,25 +83,19 @@ const InventoryPage = () => {
       return;
     }
 
-    const updated = products.map((p) => {
-      if (selectedIds.includes(p.id)) {
-        return { ...p, stock: Math.max(0, p.stock + amount) };
-      }
-      return p;
-    });
-    setProductsState(updated);
-    setProducts(updated);
-    setSelectedIds([]);
-    setBulkAmount('');
-    toast({ title: 'Success', description: `Updated ${selectedIds.length} products` });
+    toast({ title: 'Not available', description: 'Live bulk stock update API is not configured yet.', variant: 'destructive' });
   };
 
   const columns = [
     {
       key: 'image',
       header: 'Image',
-      render: (product: Product) => (
-        <img src={product.image} alt={product.name} className="h-10 w-10 rounded-lg object-cover" />
+      render: (product: InventoryProduct) => (
+        product.image ? (
+          <img src={product.image} alt={product.name} className="h-10 w-10 rounded-lg object-cover" />
+        ) : (
+          <div className="h-10 w-10 rounded-lg bg-muted" />
+        )
       ),
     },
     { key: 'name', header: 'Product' },
@@ -83,7 +104,7 @@ const InventoryPage = () => {
     {
       key: 'stock',
       header: 'Stock',
-      render: (product: Product) => (
+      render: (product: InventoryProduct) => (
         <div className="flex items-center gap-2">
           <span className={
             product.stock === 0 ? 'text-destructive font-medium' :
@@ -100,7 +121,7 @@ const InventoryPage = () => {
     {
       key: 'actions',
       header: 'Quick Update',
-      render: (product: Product) => (
+      render: (product: InventoryProduct) => (
         <div className="flex items-center gap-1">
           <Button 
             size="icon" 
