@@ -4,7 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // Import routes
 const reviewsRouter = require('./src/routes/simple-reviews');
@@ -26,6 +26,7 @@ const ordersRouter = require('./src/routes/simple-orders');
 
 const app = express();
 const PORT = process.env.PORT || 5050;
+const MONGODB_URI = process.env.MONGODB_URI;
 
 // Rate limiting
 const limiter = rateLimit({
@@ -48,9 +49,12 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
+const productDetailsRouter = require('./src/routes/simple-product-details');
+
 // Routes
-app.use('/api/reviews', reviewsRouter);
+app.use('/api/admin/reviews', reviewsRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/product-details', productDetailsRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/banners', bannersRouter);
 app.use('/api/upload', uploadRouter);
@@ -77,8 +81,13 @@ app.get('/api/health', (req, res) => {
 });
 
 // MongoDB connection
+if (!MONGODB_URI) {
+  console.error('❌ Missing MONGODB_URI env var. Add it to backend/.env (see .env.example).');
+  process.exit(1);
+}
+
 mongoose
-  .connect(process.env.MONGODB_URI, {
+  .connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })

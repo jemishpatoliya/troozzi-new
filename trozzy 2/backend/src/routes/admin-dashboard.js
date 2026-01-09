@@ -11,21 +11,17 @@ const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Admin authentication middleware
-const authenticateAdmin = async (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
+const { authenticateAdmin } = require('../middleware/adminAuth');
 
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
 
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.adminId = decoded.id;
-    
-    if (!req.adminId) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
+function addDays(d, days) {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return next;
+}
 
     const canUseDb = (() => {
       try {
@@ -1635,12 +1631,12 @@ router.get('/analytics/advanced', authenticateAdmin, async (req, res) => {
 router.get('/dashboard', authenticateAdmin, async (req, res) => {
   try {
     const period = req.query.period || 'today';
-    
+
     // Calculate date range based on period
     let startDate;
     let previousStartDate;
     const endDate = new Date();
-    
+
     switch (period) {
       case 'today':
         startDate = new Date();
@@ -2035,7 +2031,25 @@ router.get('/dashboard', authenticateAdmin, async (req, res) => {
 
     res.json({
       success: true,
-      data: stats
+      data: {
+        current: {
+          products: Number(productsCount || 0),
+          orders: Number(totalOrders || 0),
+          revenue: Number(totalRevenue || 0),
+          customers: Number(customersCount || 0),
+          currency: 'INR',
+        },
+        analytics: {
+          sales,
+          visitors,
+          topProducts,
+          conversionRate: Number(conversionRate.toFixed(2)),
+          bounceRate: Number(bounceRate.toFixed(1)),
+          avgSessionDuration,
+        },
+        lowStockProducts,
+        notifications,
+      },
     });
 
   } catch (error) {

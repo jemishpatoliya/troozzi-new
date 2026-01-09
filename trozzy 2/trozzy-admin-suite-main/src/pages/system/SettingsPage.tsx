@@ -46,6 +46,8 @@ const SettingsPage = () => {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setLoggedInUser(null);
     navigate('/sign-in');
   };

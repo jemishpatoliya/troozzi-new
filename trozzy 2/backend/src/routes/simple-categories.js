@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { CategoryModel } = require('../models/category');
+const { authenticateAdmin, requireAdmin } = require('../middleware/adminAuth');
 
 // GET /api/categories - Get all categories
 router.get('/', async (req, res) => {
@@ -51,7 +52,7 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authenticateAdmin, requireAdmin, async (req, res) => {
     try {
         const name = String(req.body?.name ?? '').trim();
         if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
@@ -84,7 +85,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
     try {
         const name = String(req.body?.name ?? '').trim();
         if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
@@ -122,7 +123,7 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
     try {
         const child = await CategoryModel.findOne({ parentId: req.params.id }).lean();
         if (child) return res.status(400).json({ success: false, message: 'Cannot delete a category that has children' });

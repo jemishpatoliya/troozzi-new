@@ -12,28 +12,31 @@ async function createAdminUser() {
     console.log('✅ Connected to MongoDB');
 
     // Check if admin user already exists
-    const existingAdmin = await AdminModel.findOne({ email: 'admin@gmail.com' });
-    if (existingAdmin) {
-      console.log('✅ Admin user already exists');
-      console.log('Email: admin@gmail.com');
-      console.log('Password: admin123');
-      await mongoose.disconnect();
-      return;
+    // Check if both admin users exist
+    const admins = [
+      { email: 'admin@gmail.com', firstName: 'Admin', lastName: 'User' },
+      { email: 'admin@trozzy.com', firstName: 'Admin', lastName: 'Trozzy' }
+    ];
+
+    for (const a of admins) {
+      const existing = await AdminModel.findOne({ email: a.email });
+      if (!existing) {
+        const adminUser = new AdminModel({
+          firstName: a.firstName,
+          lastName: a.lastName,
+          email: a.email,
+          password: 'admin123',
+          phone: '9876543210',
+          role: 'admin'
+        });
+        await adminUser.save();
+        console.log(`✅ Admin user ${a.email} created`);
+      } else {
+        console.log(`✅ Admin user ${a.email} already exists`);
+      }
     }
 
-    // Create admin user
-    const adminUser = new AdminModel({
-      firstName: 'Admin',
-      lastName: 'User',
-      email: 'admin@gmail.com',
-      password: 'admin123',
-      phone: '9876543210'
-    });
-
-    await adminUser.save();
-    console.log('✅ Admin user created successfully');
-    console.log('Email: admin@gmail.com');
-    console.log('Password: admin123');
+    console.log('✅ Admin creation process completed');
 
   } catch (error) {
     console.error('❌ Error creating admin user:', error);

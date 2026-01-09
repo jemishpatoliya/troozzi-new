@@ -1,44 +1,45 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
+const { ProductModel } = require('../models/product');
 const { authenticateAdmin, requireAdmin } = require('../middleware/adminAuth');
 
 function mapProduct(p) {
+    const doc = p._doc || p;
     return {
-        _id: String(p._id),
-        id: String(p._id),
-        slug: p.slug,
-        visibility: p.visibility,
-        name: p.name,
-        sku: p.sku,
-        price: p.price,
-        stock: p.stock,
-        status: p.status,
-        image: p.image,
-        galleryImages: p.galleryImages,
-        category: p.category,
-        description: p.description,
-        featured: p.featured,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-        sizes: p.sizes,
-        colors: p.colors,
-        colorVariants: p.colorVariants,
-        variants: p.variants,
-        tags: p.tags,
-        keyFeatures: p.keyFeatures,
-        warranty: p.warranty,
-        warrantyDetails: p.warrantyDetails,
-        saleEnabled: p.saleEnabled,
-        saleDiscount: p.saleDiscount,
-        saleStartDate: p.saleStartDate,
-        saleEndDate: p.saleEndDate,
-        metaTitle: p.metaTitle,
-        metaDescription: p.metaDescription,
-        weight: p.weight,
-        dimensions: p.dimensions,
-        badge: p.badge,
-        brand: p.brand,
+        _id: String(doc._id),
+        id: String(doc._id),
+        slug: doc.slug,
+        visibility: doc.visibility,
+        name: doc.name,
+        sku: doc.sku,
+        price: doc.price,
+        stock: doc.stock,
+        status: doc.status,
+        image: doc.image,
+        galleryImages: doc.galleryImages,
+        category: doc.category,
+        description: doc.description,
+        featured: doc.featured,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        sizes: doc.sizes,
+        colors: doc.colors,
+        colorVariants: doc.colorVariants,
+        variants: doc.variants,
+        tags: doc.tags,
+        keyFeatures: doc.keyFeatures,
+        warranty: doc.warranty,
+        warrantyDetails: doc.warrantyDetails,
+        saleEnabled: doc.saleEnabled,
+        saleDiscount: doc.saleDiscount,
+        saleStartDate: doc.saleStartDate,
+        saleEndDate: doc.saleEndDate,
+        metaTitle: doc.metaTitle,
+        metaDescription: doc.metaDescription,
+        weight: doc.weight,
+        dimensions: doc.dimensions,
+        badge: doc.badge,
+        brand: doc.brand,
     };
 }
 
@@ -70,8 +71,8 @@ router.get('/', authenticateAdmin, requireAdmin, async (req, res) => {
         const skip = (pageNum - 1) * limitNum;
 
         const [products, total] = await Promise.all([
-            db.collection('products').find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum).toArray(),
-            db.collection('products').countDocuments(filter)
+            ProductModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),
+            ProductModel.countDocuments(filter)
         ]);
 
         const mappedProducts = products.map(mapProduct);
@@ -98,10 +99,7 @@ router.get('/', authenticateAdmin, requireAdmin, async (req, res) => {
 // GET /api/admin/products/:id - Get single product
 router.get('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
     try {
-        const db = mongoose.connection.db;
-        const { ObjectId } = require('mongodb');
-
-        const product = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
+        const product = await ProductModel.findById(req.params.id).lean();
 
         if (!product) {
             return res.status(404).json({
@@ -142,12 +140,12 @@ router.post('/', authenticateAdmin, requireAdmin, async (req, res) => {
             updatedAt: new Date()
         };
 
-        const result = await db.collection('products').insertOne(newProduct);
+        const result = await ProductModel.create(newProduct);
 
         res.status(201).json({
             success: true,
             message: 'Product created successfully',
-            product: mapProduct({ ...newProduct, _id: result.insertedId })
+            product: mapProduct(result)
         });
     } catch (error) {
         console.error('Error creating product:', error);
@@ -161,27 +159,23 @@ router.post('/', authenticateAdmin, requireAdmin, async (req, res) => {
 // PUT /api/admin/products/:id - Update product
 router.put('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
     try {
-        const db = mongoose.connection.db;
-        const { ObjectId } = require('mongodb');
-
         const updateData = {
             ...req.body,
             updatedAt: new Date()
         };
 
-        const result = await db.collection('products').updateOne(
-            { _id: new ObjectId(req.params.id) },
-            { $set: updateData }
-        );
+        const updatedProduct = await ProductModel.findByIdAndUpdate(
+            req.params.id,
+            { $set: updateData },
+            { new: true }
+        ).lean();
 
-        if (result.matchedCount === 0) {
+        if (!updatedProduct) {
             return res.status(404).json({
                 success: false,
                 message: 'Product not found'
             });
         }
-
-        const updatedProduct = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
 
         res.json({
             success: true,
@@ -200,12 +194,9 @@ router.put('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
 // DELETE /api/admin/products/:id - Delete product
 router.delete('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
     try {
-        const db = mongoose.connection.db;
-        const { ObjectId } = require('mongodb');
+        const result = await ProductModel.findByIdAndDelete(req.params.id);
 
-        const result = await db.collection('products').deleteOne({ _id: new ObjectId(req.params.id) });
-
-        if (result.deletedCount === 0) {
+        if (!result) {
             return res.status(404).json({
                 success: false,
                 message: 'Product not found'

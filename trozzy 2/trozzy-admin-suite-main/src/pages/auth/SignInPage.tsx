@@ -8,6 +8,10 @@ import { Zap, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
 
+const API_BASE_URL = ((import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '') as string)
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
 const SignInPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -21,7 +25,10 @@ const SignInPage = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('/api/auth/admin/login', { email, password });
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+
+      const response = await axios.post(`${API_BASE_URL}/api/auth/admin/login`, { email, password });
       const payload = response.data;
       const token: string | undefined = payload?.data?.token ?? payload?.token;
       const admin = payload?.data?.admin ?? payload?.admin ?? payload?.data?.user ?? payload?.user;

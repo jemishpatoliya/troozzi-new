@@ -13,6 +13,11 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '')
+  .toString()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
 type RealtimePayload = {
   success: boolean;
   data?: {
@@ -63,7 +68,7 @@ const RealTimeAnalytics = () => {
         return;
       }
 
-      const response = await axios.get<RealtimePayload>('/api/admin/analytics/realtime', {
+      const response = await axios.get<RealtimePayload>(`${API_BASE_URL}/api/admin/analytics/realtime`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { authenticateUser, requireUser } = require('../middleware/userAuth');
+const { ProductModel } = require('../models/product');
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -20,6 +21,20 @@ const CartSchema = new mongoose.Schema({
 });
 
 const Cart = mongoose.models.Cart || mongoose.model('Cart', CartSchema);
+
+// Debug endpoint (temporary)
+router.post('/debug', authenticateUser, requireUser, (req, res) => {
+    res.json({
+        ok: true,
+        userId: String(req.user?._id || ''),
+        headers: {
+            authorization: req.headers.authorization,
+            origin: req.headers.origin,
+            host: req.headers.host,
+        },
+        body: req.body,
+    });
+});
 
 // Get user's cart
 router.get('/', authenticateUser, requireUser, async (req, res) => {
@@ -51,18 +66,17 @@ router.post('/add', authenticateUser, requireUser, async (req, res) => {
         }
 
         // Verify product exists and get price
-        const Product = mongoose.model('Product');
-        const product = await Product.findById(productId);
+        const product = await ProductModel.findById(productId);
         if (!product || product.status !== 'active') {
             return res.status(404).json({ error: 'Product not found or not available' });
         }
 
         // Find or create user's cart
-        let cart = await Cart.findOne({ user: req.userId });
+        let cart = await Cart.findOne({ user: req.user._id });
 
         if (!cart) {
             cart = new Cart({
-                user: req.userId,
+                user: req.user._id,
                 items: [],
                 totalAmount: 0
             });
@@ -92,7 +106,7 @@ router.post('/add', authenticateUser, requireUser, async (req, res) => {
         await cart.save();
 
         // Return updated cart with populated product details
-        const updatedCart = await Cart.findOne({ user: req.userId })
+        const updatedCart = await Cart.findOne({ user: req.user._id })
             .populate('items.product', 'name image price');
 
         if (!updatedCart) {
@@ -125,7 +139,7 @@ router.put('/update', authenticateUser, requireUser, async (req, res) => {
             actualProductId = productId._id;
         }
 
-        const cart = await Cart.findOne({ user: req.userId });
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
             return res.status(404).json({ error: 'Cart not found' });
         }
@@ -152,7 +166,7 @@ router.put('/update', authenticateUser, requireUser, async (req, res) => {
         await cart.save();
 
         // Return updated cart with populated product details
-        const updatedCart = await Cart.findOne({ user: req.userId })
+        const updatedCart = await Cart.findOne({ user: req.user._id })
             .populate('items.product', 'name image price');
 
         if (!updatedCart) {
@@ -183,7 +197,7 @@ router.delete('/remove/:productId', authenticateUser, requireUser, async (req, r
             });
         }
 
-        const cart = await Cart.findOne({ user: req.userId });
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
             return res.status(404).json({ error: 'Cart not found' });
         }
@@ -198,7 +212,7 @@ router.delete('/remove/:productId', authenticateUser, requireUser, async (req, r
         await cart.save();
 
         // Return updated cart with populated product details
-        const updatedCart = await Cart.findOne({ user: req.userId })
+        const updatedCart = await Cart.findOne({ user: req.user._id })
             .populate('items.product', 'name image price');
 
         if (!updatedCart) {
@@ -231,7 +245,7 @@ router.delete('/remove', authenticateUser, requireUser, async (req, res) => {
             actualProductId = productId._id;
         }
 
-        const cart = await Cart.findOne({ user: req.userId });
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
             return res.status(404).json({ error: 'Cart not found' });
         }
@@ -246,7 +260,7 @@ router.delete('/remove', authenticateUser, requireUser, async (req, res) => {
         await cart.save();
 
         // Return updated cart with populated product details
-        const updatedCart = await Cart.findOne({ user: req.userId })
+        const updatedCart = await Cart.findOne({ user: req.user._id })
             .populate('items.product', 'name image price');
 
         if (!updatedCart) {
@@ -297,7 +311,7 @@ router.delete('/remove-by-object', authenticateUser, requireUser, async (req, re
             });
         }
 
-        const cart = await Cart.findOne({ user: req.userId });
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
             return res.status(404).json({ error: 'Cart not found' });
         }
@@ -318,7 +332,7 @@ router.delete('/remove-by-object', authenticateUser, requireUser, async (req, re
         await cart.save();
 
         // Return updated cart with populated product details
-        const updatedCart = await Cart.findOne({ user: req.userId })
+        const updatedCart = await Cart.findOne({ user: req.user._id })
             .populate('items.product', 'name image price');
 
         if (!updatedCart) {
@@ -374,7 +388,7 @@ router.put('/update-by-object', authenticateUser, requireUser, async (req, res) 
             });
         }
 
-        const cart = await Cart.findOne({ user: req.userId });
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
             return res.status(404).json({ error: 'Cart not found' });
         }
@@ -401,7 +415,7 @@ router.put('/update-by-object', authenticateUser, requireUser, async (req, res) 
         await cart.save();
 
         // Return updated cart with populated product details
-        const updatedCart = await Cart.findOne({ user: req.userId })
+        const updatedCart = await Cart.findOne({ user: req.user._id })
             .populate('items.product', 'name image price');
 
         if (!updatedCart) {
@@ -419,9 +433,10 @@ router.put('/update-by-object', authenticateUser, requireUser, async (req, res) 
         res.status(500).json({ error: 'Failed to update cart' });
     }
 });
+
 router.delete('/clear', authenticateUser, requireUser, async (req, res) => {
     try {
-        const cart = await Cart.findOne({ user: req.userId });
+        const cart = await Cart.findOne({ user: req.user._id });
         if (!cart) {
             return res.status(404).json({ error: 'Cart not found' });
         }
@@ -444,7 +459,7 @@ router.delete('/clear', authenticateUser, requireUser, async (req, res) => {
 // Get cart item count
 router.get('/count', authenticateUser, requireUser, async (req, res) => {
     try {
-        const cart = await Cart.findOne({ user: req.userId });
+        const cart = await Cart.findOne({ user: req.user._id });
         const itemCount = cart ? cart.items.reduce((total, item) => total + item.quantity, 0) : 0;
 
         res.json({ itemCount });

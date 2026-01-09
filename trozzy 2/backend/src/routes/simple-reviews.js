@@ -3,105 +3,25 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Review = require('../models/Review');
 
+const { authenticateAdmin, requireAdmin } = require('../middleware/adminAuth');
+
+// Protected admin routes
+router.use(authenticateAdmin);
+router.use(requireAdmin);
+
 // GET /api/admin/reviews/stats - Get review statistics
 router.get('/stats', async (req, res) => {
     try {
-        const stats = {
-            totalReviews: 8,
-            averageRating: 4,
-            pendingReviews: 2,
-            approvedReviews: 5,
-            rejectedReviews: 1,
-            ratingDistribution: { '1': 0, '2': 1, '3': 1, '4': 3, '5': 3 }
-        };
-
+        const stats = await Review.getStats();
         res.json({
             success: true,
             stats
         });
     } catch (error) {
+        console.error('Error fetching review stats:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch review stats'
-        });
-    }
-});
-
-// PATCH /api/admin/reviews/:id/status - Update review status
-router.patch('/:id/status', async (req, res) => {
-    try {
-        const { status, reason } = req.body;
-
-        res.json({
-            success: true,
-            message: `Review status updated to ${status}`,
-            review: { _id: req.params.id, status, reason }
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update review status'
-        });
-    }
-});
-
-// DELETE /api/admin/reviews/:id - Delete review
-router.delete('/:id', async (req, res) => {
-    try {
-        res.json({
-            success: true,
-            message: 'Review deleted successfully'
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Failed to delete review'
-        });
-    }
-});
-
-// PATCH /api/admin/reviews/bulk-update - Bulk update reviews
-router.patch('/bulk-update', async (req, res) => {
-    try {
-        const { reviewIds, status, reason } = req.body;
-
-        res.json({
-            success: true,
-            message: `${reviewIds.length} reviews updated successfully`
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Failed to bulk update reviews'
-        });
-    }
-});
-
-// GET /api/admin/reviews/:id - Get single review
-router.get('/:id', async (req, res) => {
-    try {
-        const mockReview = {
-            _id: req.params.id,
-            rating: 4,
-            title: 'Great product',
-            comment: 'Really enjoyed this product, would recommend!',
-            customerName: 'John Doe',
-            customerEmail: 'john@example.com',
-            productName: 'Wireless Headphones Pro',
-            productId: '1',
-            status: 'approved',
-            createdAt: new Date().toISOString(),
-            helpful: 5
-        };
-
-        res.json({
-            success: true,
-            review: mockReview
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch review'
+            message: 'Failed to fetch review statistics'
         });
     }
 });
@@ -183,7 +103,7 @@ router.get('/', async (req, res) => {
         const totalPages = Math.ceil(totalReviews / limitNum);
 
         res.json({
-            reviews,
+            reviews: reviews.map(r => ({ ...r.toObject ? r.toObject() : r, id: String(r._id) })),
             totalPages,
             currentPage: pageNum,
             totalReviews,
@@ -199,54 +119,28 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/admin/reviews/stats - Get review statistics
-router.get('/stats', async (req, res) => {
-    try {
-        const stats = await Review.getStats();
-        res.json(stats);
-    } catch (error) {
-        console.error('Error fetching review stats:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch review statistics'
-        });
-    }
-});
-
-// GET /api/admin/reviews/:id - Get single review by ID
+// GET /api/admin/reviews/:id - Get single review
 router.get('/:id', async (req, res) => {
     try {
         const review = await Review.findById(req.params.id);
-
         if (!review) {
-            return res.status(404).json({
-                success: false,
-                message: 'Review not found'
-            });
+            return res.status(404).json({ success: false, message: 'Review not found' });
         }
-
-        res.json(review);
+        res.json({ success: true, review });
     } catch (error) {
         console.error('Error fetching review:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to fetch review'
-        });
+        res.status(500).json({ success: false, message: 'Failed to fetch review' });
     }
 });
 
-// PATCH /api/admin/reviews/:id/status - Update review status
-router.patch('/:id/status', async (req, res) => {
+// PUT /api/admin/reviews/:id/status - Update review status
+router.put('/:id/status', async (req, res) => {
     try {
         const { status, reason } = req.body;
-
         const review = await Review.findById(req.params.id);
 
         if (!review) {
-            return res.status(404).json({
-                success: false,
-                message: 'Review not found'
-            });
+            return res.status(404).json({ success: false, message: 'Review not found' });
         }
 
         review.status = status;
@@ -258,15 +152,12 @@ router.patch('/:id/status', async (req, res) => {
 
         res.json({
             success: true,
-            message: `Review ${status} successfully`,
+            message: `Review status updated to ${status}`,
             review
         });
     } catch (error) {
         console.error('Error updating review status:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update review status'
-        });
+        res.status(500).json({ success: false, message: 'Failed to update review status' });
     }
 });
 
@@ -274,25 +165,13 @@ router.patch('/:id/status', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const review = await Review.findByIdAndDelete(req.params.id);
-
         if (!review) {
-            return res.status(404).json({
-                success: false,
-                message: 'Review not found'
-            });
+            return res.status(404).json({ success: false, message: 'Review not found' });
         }
-
-        res.json({
-            success: true,
-            message: 'Review deleted successfully',
-            review
-        });
+        res.json({ success: true, message: 'Review deleted successfully' });
     } catch (error) {
         console.error('Error deleting review:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to delete review'
-        });
+        res.status(500).json({ success: false, message: 'Failed to delete review' });
     }
 });
 

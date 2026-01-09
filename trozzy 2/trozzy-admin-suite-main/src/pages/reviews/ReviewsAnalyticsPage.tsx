@@ -5,7 +5,11 @@ import { Star, TrendingUp, TrendingDown, MessageSquare, ThumbsUp, Eye } from 'lu
 import { getReviewStats } from '../../api/reviews';
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5050/api';
+const API_BASE = ((import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '') as string)
+  .replace(/\/+$/, '')
+  .replace(/\/api$/, '');
+
+const API_BASE_URL = API_BASE ? `${API_BASE}/api` : '/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 

@@ -83,7 +83,9 @@ const CheckoutPage = () => {
             await handlePaymentSuccess(response.data);
 
         } catch (error) {
-            setError('Failed to initiate payment. Please try again.');
+            console.error('Payment initiation error:', error);
+            const message = error.response?.data?.message || error.response?.data?.error || 'Failed to initiate payment. Please try again.';
+            setError(message);
             setLoading(false);
         }
     };
@@ -128,7 +130,9 @@ const CheckoutPage = () => {
             fetchCart(); // Clear cart
 
         } catch (error) {
-            setError('Payment verification failed. Please contact support.');
+            console.error('Payment verification error:', error);
+            const message = error.response?.data?.message || error.response?.data?.error || 'Payment verification failed. Please contact support.';
+            setError(message);
             setLoading(false);
         }
     };

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
+import { useAuth } from './AuthContext';
 
 const WishlistContext = createContext();
 
@@ -12,6 +13,7 @@ export const useWishlist = () => {
 };
 
 export const WishlistProvider = ({ children }) => {
+    const { token } = useAuth();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const [itemCount, setItemCount] = useState(0);
@@ -104,6 +106,14 @@ export const WishlistProvider = ({ children }) => {
             fetchWishlist();
         }
     }, []);
+
+    useEffect(() => {
+        setItems([]);
+
+        if (token) {
+            fetchWishlist();
+        }
+    }, [token]);
 
     const value = {
         items,

@@ -41,6 +41,8 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('trozzy_auth_user');
+    localStorage.removeItem('trozzy_logged_in_user');
     toast({ title: 'Logged Out', description: 'You have been logged out successfully' });
     navigate('/sign-in', { replace: true });
   };

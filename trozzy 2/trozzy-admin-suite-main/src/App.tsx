@@ -16,7 +16,7 @@ import ReportBuilder from "./pages/analytics/ReportBuilder";
 import ProductsPage from "./pages/commerce/ProductsPage";
 import ProductManagementPage from "./pages/commerce/ProductManagementPage";
 import ProductPreviewPage from "./pages/commerce/ProductPreviewPage";
-import OrdersPage from "./pages/commerce/OrdersPage";
+import OrderManagement from "./pages/commerce/OrderManagement";
 import InventoryPage from "./pages/commerce/InventoryPage";
 import PaymentsPage from "./pages/commerce/PaymentsPage";
 import PaymentsManagementPage from "./pages/commerce/PaymentsManagementPage";
@@ -86,7 +86,7 @@ const App = () => (
             <Route path="/commerce/products/:id" element={<ProductManagementPage />} />
             <Route path="/commerce/categories" element={<CategoriesPage />} />
             <Route path="/commerce/banners" element={<BannersPage />} />
-            <Route path="/commerce/orders" element={<OrdersPage />} />
+            <Route path="/commerce/orders" element={<OrderManagement />} />
             <Route path="/commerce/inventory" element={<InventoryPage />} />
             <Route path="/commerce/payments" element={<PaymentsManagementPage />} />
             

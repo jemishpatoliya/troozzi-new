@@ -89,138 +89,162 @@ function makeProviderOrderId(provider: string) {
 
 // Backward-compatible alias used by older clients
 router.post('/create-order', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  const parsed = initiateSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid body', issues: parsed.error.issues });
+  try {
+    const parsed = initiateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid body', issues: parsed.error.issues });
+    }
+
+    const { amount, currency, provider, orderId } = parsed.data;
+    const providerOrderId = makeProviderOrderId(provider);
+
+    const orderObjectId = orderId && Types.ObjectId.isValid(orderId) ? new Types.ObjectId(orderId) : undefined;
+
+    const payment = await PaymentModel.create({
+      order: orderObjectId,
+      user: new Types.ObjectId(req.userId),
+      provider,
+      providerOrderId,
+      amount,
+      currency,
+      status: 'pending',
+      paymentMethod: provider,
+    });
+
+    return res.json({
+      paymentId: String(payment._id),
+      provider,
+      amount,
+      currency,
+      providerOrderId,
+      status: payment.status,
+      supportedProviders: ['phonepe', 'paytm', 'upi'],
+      nextAction: {
+        type: provider === 'upi' ? 'upi_intent' : 'redirect_url',
+        url: `https://example.invalid/pay/${providerOrderId}`,
+      },
+      message: 'Payment initiation is mocked (providers not integrated yet).',
+    });
+  } catch (error) {
+    console.error('Create order error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to create payment order',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
-
-  const { amount, currency, provider, orderId } = parsed.data;
-  const providerOrderId = makeProviderOrderId(provider);
-
-  const orderObjectId = orderId && Types.ObjectId.isValid(orderId) ? new Types.ObjectId(orderId) : undefined;
-
-  const payment = await PaymentModel.create({
-    order: orderObjectId,
-    user: new Types.ObjectId(req.userId),
-    provider,
-    providerOrderId,
-    amount,
-    currency,
-    status: 'pending',
-    paymentMethod: provider,
-  });
-
-  return res.json({
-    paymentId: String(payment._id),
-    provider,
-    amount,
-    currency,
-    providerOrderId,
-    status: payment.status,
-    supportedProviders: ['phonepe', 'paytm', 'upi'],
-    nextAction: {
-      type: provider === 'upi' ? 'upi_intent' : 'redirect_url',
-      url: `https://example.invalid/pay/${providerOrderId}`,
-    },
-    message: 'Payment initiation is mocked (providers not integrated yet).',
-  });
 });
 
 // Payment initiation (PhonePe/Paytm/UPI) - mocked for now
 router.post('/initiate', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  const parsed = initiateSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid body', issues: parsed.error.issues });
+  try {
+    const parsed = initiateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid body', issues: parsed.error.issues });
+    }
+
+    const { amount, currency, provider, orderId } = parsed.data;
+    const providerOrderId = makeProviderOrderId(provider);
+
+    const orderObjectId = orderId && Types.ObjectId.isValid(orderId) ? new Types.ObjectId(orderId) : undefined;
+
+    const payment = await PaymentModel.create({
+      order: orderObjectId,
+      user: new Types.ObjectId(req.userId),
+      provider,
+      providerOrderId,
+      amount,
+      currency,
+      status: 'pending',
+      paymentMethod: provider,
+    });
+
+    return res.json({
+      paymentId: String(payment._id),
+      provider,
+      amount,
+      currency,
+      providerOrderId,
+      status: payment.status,
+      supportedProviders: ['phonepe', 'paytm', 'upi'],
+      nextAction: {
+        type: provider === 'upi' ? 'upi_intent' : 'redirect_url',
+        url: `https://example.invalid/pay/${providerOrderId}`,
+      },
+      message: 'Payment initiation is mocked (providers not integrated yet).',
+    });
+  } catch (error) {
+    console.error('Initiate payment error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to initiate payment',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
-
-  const { amount, currency, provider, orderId } = parsed.data;
-  const providerOrderId = makeProviderOrderId(provider);
-
-  const orderObjectId = orderId && Types.ObjectId.isValid(orderId) ? new Types.ObjectId(orderId) : undefined;
-
-  const payment = await PaymentModel.create({
-    order: orderObjectId,
-    user: new Types.ObjectId(req.userId),
-    provider,
-    providerOrderId,
-    amount,
-    currency,
-    status: 'pending',
-    paymentMethod: provider,
-  });
-
-  return res.json({
-    paymentId: String(payment._id),
-    provider,
-    amount,
-    currency,
-    providerOrderId,
-    status: payment.status,
-    supportedProviders: ['phonepe', 'paytm', 'upi'],
-    nextAction: {
-      type: provider === 'upi' ? 'upi_intent' : 'redirect_url',
-      url: `https://example.invalid/pay/${providerOrderId}`,
-    },
-    message: 'Payment initiation is mocked (providers not integrated yet).',
-  });
 });
 
 // Payment verification - mocked for now
 router.post('/verify', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  const parsed = verifySchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'Invalid body', issues: parsed.error.issues });
-  }
-
-  const { paymentId, status, providerPaymentId, providerSignature, orderData } = parsed.data;
-
-  const payment = await PaymentModel.findOne({ _id: paymentId, user: req.userId });
-  if (!payment) {
-    return res.status(404).json({ error: 'Payment not found' });
-  }
-
-  payment.status = status;
-  if (providerPaymentId) payment.providerPaymentId = providerPaymentId;
-  if (providerSignature) payment.providerSignature = providerSignature;
-
-  if (status === 'completed') {
-    // If caller provided orderData and this payment isn't linked yet, create and link the order.
-    if (!payment.order && orderData) {
-      const part = Math.random().toString(16).slice(2, 8).toUpperCase();
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${part}`;
-
-      const createdOrder = await OrderModel.create({
-        user: new Types.ObjectId(req.userId),
-        orderNumber,
-        status: 'paid',
-        currency: orderData.currency,
-        subtotal: orderData.subtotal,
-        shipping: orderData.shipping,
-        tax: orderData.tax,
-        total: orderData.total,
-        items: orderData.items,
-        customer: orderData.customer,
-        address: orderData.address,
-        createdAtIso: new Date().toISOString(),
-      });
-
-      payment.order = createdOrder._id;
+  try {
+    const parsed = verifySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid body', issues: parsed.error.issues });
     }
 
-    if (payment.order) {
-      await OrderModel.updateOne({ _id: payment.order }, { $set: { status: 'paid' } });
+    const { paymentId, status, providerPaymentId, providerSignature, orderData } = parsed.data;
+
+    const payment = await PaymentModel.findOne({ _id: paymentId, user: req.userId });
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
     }
+
+    payment.status = status;
+    if (providerPaymentId) payment.providerPaymentId = providerPaymentId;
+    if (providerSignature) payment.providerSignature = providerSignature;
+
+    if (status === 'completed') {
+      // If caller provided orderData and this payment isn't linked yet, create and link the order.
+      if (!payment.order && orderData) {
+        const part = Math.random().toString(16).slice(2, 8).toUpperCase();
+        const orderNumber = `ORD-${Date.now().toString().slice(-6)}-${part}`;
+
+        const createdOrder = await OrderModel.create({
+          user: new Types.ObjectId(req.userId),
+          orderNumber,
+          status: 'paid',
+          currency: orderData.currency,
+          subtotal: orderData.subtotal,
+          shipping: orderData.shipping,
+          tax: orderData.tax,
+          total: orderData.total,
+          items: orderData.items,
+          customer: orderData.customer,
+          address: orderData.address,
+          createdAtIso: new Date().toISOString(),
+        });
+
+        payment.order = createdOrder._id;
+      }
+
+      if (payment.order) {
+        await OrderModel.updateOne({ _id: payment.order }, { $set: { status: 'paid' } });
+      }
+    }
+
+    await payment.save();
+
+    return res.json({
+      paymentId: String(payment._id),
+      status: payment.status,
+      provider: payment.provider,
+      orderId: payment.order ? String(payment.order) : undefined,
+      message: 'Payment verification is mocked (providers not integrated yet).',
+    });
+  } catch (error) {
+    console.error('Verify payment error:', error);
+    return res.status(500).json({ 
+      error: 'Failed to verify payment',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
-
-  await payment.save();
-
-  return res.json({
-    paymentId: String(payment._id),
-    status: payment.status,
-    provider: payment.provider,
-    orderId: payment.order ? String(payment.order) : undefined,
-    message: 'Payment verification is mocked (providers not integrated yet).',
-  });
 });
 
 // Provider webhook/callback endpoint - to be implemented next

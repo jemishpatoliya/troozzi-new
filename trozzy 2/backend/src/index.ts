@@ -19,6 +19,8 @@ import dashboardRouter from "./routes/dashboard";
 import analyticsRouter from "./routes/analytics";
 import wishlistRouter from "./routes/wishlist";
 import uploadRouter from "./routes/upload";
+import adminAuthRouter from "./routes/adminAuth";
+import adminBannersRouter from "./routes/adminBanners";
 
 dotenv.config();
 
@@ -83,11 +85,13 @@ async function main() {
   app.use("/api/product-details", productDetailsRouter);
   app.use("/api/admin/reviews", adminReviewsRouter);
   app.use("/api/auth", authRouter);
+  app.use("/api/auth/admin", adminAuthRouter);
   app.use("/api/cart", cartRouter);
   app.use("/api/payments", paymentsRouter);
   app.use("/api/admin/users", usersRouter);
   app.use("/api/admin/dashboard", dashboardRouter);
   app.use("/api/admin/analytics", analyticsRouter);
+  app.use("/api/admin/banners", adminBannersRouter);
   app.use("/api/wishlist", wishlistRouter);
   app.use("/api/upload", uploadRouter);
 
