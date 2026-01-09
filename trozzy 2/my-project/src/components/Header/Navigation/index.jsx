@@ -22,14 +22,14 @@ const Navigation = () => {
     'Footwear',
     'Grossary',
     'Beauty',
-    'Jewellary'
+    'Jewellery'
   ];
 
   const routeForMenuItem = (item) => {
     const label = String(item);
     if (label === 'Home') return '/';
     if (label === 'Grossary') return `/ProductListing?category=${encodeURIComponent('Grocery')}`;
-    if (label === 'Jewellary') return `/ProductListing?category=${encodeURIComponent('Jewellery')}`;
+    if (label === 'Jewellery') return `/ProductListing?category=${encodeURIComponent('Jewellery')}`;
     return `/ProductListing?category=${encodeURIComponent(label)}`;
   };
 
