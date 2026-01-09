@@ -82,6 +82,33 @@ router.get('/:id/management', authenticateAdmin, requireAdmin, async (req, res) 
     }
 });
 
+// GET /api/products/slug/:slug (mode=admin requires token, mode=public is open)
+router.get('/slug/:slug', async (req, res, next) => {
+    const mode = String(req.query?.mode ?? 'public');
+    if (mode === 'admin') return authenticateAdmin(req, res, () => requireAdmin(req, res, next));
+    return next();
+});
+
+router.get('/slug/:slug', async (req, res) => {
+    try {
+        const mode = String(req.query?.mode ?? 'public');
+        const db = mongoose.connection.db;
+
+        const filter = { slug: String(req.params.slug) };
+        if (mode !== 'admin') {
+            filter.status = { $in: ['active', 'published'] };
+            filter.visibility = 'public';
+        }
+
+        const doc = await db.collection('products').findOne(filter);
+        if (!doc) return res.status(404).json({ success: false, message: 'Product not found' });
+        res.json(mapProduct(doc));
+    } catch (error) {
+        console.error('Error fetching product by slug:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch product' });
+    }
+});
+
 // POST /api/products/draft (admin)
 router.post('/draft', authenticateAdmin, requireAdmin, async (req, res) => {
     try {
@@ -248,12 +275,26 @@ router.delete('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
     }
 });
 
-// GET /api/products/:id (admin)
-router.get('/:id', authenticateAdmin, requireAdmin, async (req, res) => {
+// GET /api/products/:id (mode=admin requires token, mode=public is open)
+router.get('/:id', async (req, res, next) => {
+    const mode = String(req.query?.mode ?? 'public');
+    if (mode === 'admin') return authenticateAdmin(req, res, () => requireAdmin(req, res, next));
+    return next();
+});
+
+router.get('/:id', async (req, res) => {
     try {
+        const mode = String(req.query?.mode ?? 'public');
         const db = mongoose.connection.db;
         const { ObjectId } = require('mongodb');
-        const doc = await db.collection('products').findOne({ _id: new ObjectId(req.params.id) });
+
+        const filter = { _id: new ObjectId(req.params.id) };
+        if (mode !== 'admin') {
+            filter.status = { $in: ['active', 'published'] };
+            filter.visibility = 'public';
+        }
+
+        const doc = await db.collection('products').findOne(filter);
         if (!doc) return res.status(404).json({ success: false, message: 'Product not found' });
         res.json(mapProduct(doc));
     } catch (error) {
