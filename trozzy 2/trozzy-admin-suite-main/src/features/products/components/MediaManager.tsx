@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { uploadImageQueued } from "@/lib/uploadQueue";
 import { cn } from "@/lib/utils";
 import { ImagePlus, Move, Star, Trash2, Upload } from "lucide-react";
 
@@ -15,32 +16,6 @@ type Props = {
   onChange: (next: { images: ProductImage[]; thumbnailId: string | null }) => void;
   className?: string;
 };
-
-async function uploadFileToServer(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append("image", file);
-
-  const res = await fetch("/api/upload/image", {
-    method: "POST",
-    body: fd,
-  });
-
-  if (!res.ok) {
-    let msg = `Upload failed (${res.status})`;
-    try {
-      const data = await res.json();
-      msg = data?.message || data?.error || msg;
-    } catch {
-      // ignore
-    }
-    throw new Error(msg);
-  }
-
-  const data = await res.json();
-  const url = data?.url;
-  if (!url) throw new Error("Upload failed: missing url");
-  return String(url);
-}
 
 export function MediaManager({ images, thumbnailId, onChange, className }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -74,15 +49,16 @@ export function MediaManager({ images, thumbnailId, onChange, className }: Props
 
     setUploading(true);
     try {
-      const nextUrls = await Promise.all(slice.map(uploadFileToServer));
+      const nextUrls = await Promise.all(slice.map((f) => uploadImageQueued(f, { maxRetries: 3 })));
       const appended = nextUrls.map((url) => ({ id: `img-${Date.now()}-${Math.random().toString(16).slice(2)}`, url }));
       const next = [...images, ...appended];
       setImages(next, resolvedThumbId ?? appended[0]?.id ?? null);
-      if (inputRef.current) inputRef.current.value = "";
     } catch (e: any) {
       // Keep it minimal: surface the error without adding UI components.
-      window.alert(e?.message ?? "Failed to upload image");
+      const msg = e?.message ?? "Failed to upload image";
+      window.alert(msg);
     } finally {
+      if (inputRef.current) inputRef.current.value = "";
       setUploading(false);
     }
   };
