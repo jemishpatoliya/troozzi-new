@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { isAuthenticated, getLoggedInUser, setLoggedInUser, AuthUser, initializeMockData } from '@/lib/mockData';
+
+type AuthUser = {
+  id?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: string;
+  type?: string;
+};
 
 export const useAuth = () => {
   const navigate = useNavigate();
@@ -9,26 +17,33 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    initializeMockData();
-    const loggedInUser = getLoggedInUser();
-    setUser(loggedInUser);
-    setLoading(false);
+    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
 
-    if (!loggedInUser && location.pathname !== '/sign-in') {
-      navigate('/sign-in');
+    const parsedUser = storedUser ? (JSON.parse(storedUser) as AuthUser) : null;
+    if (token) {
+      setUser(parsedUser);
+    } else {
+      setUser(null);
+      if (location.pathname !== '/sign-in') {
+        navigate('/sign-in');
+      }
     }
+
+    setLoading(false);
   }, [navigate, location.pathname]);
 
   const logout = () => {
-    setLoggedInUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
-    navigate('/sign-in');
+    navigate('/sign-in', { replace: true });
   };
 
   const updateUser = (updates: Partial<AuthUser>) => {
     if (user) {
       const updatedUser = { ...user, ...updates };
-      setLoggedInUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
   };

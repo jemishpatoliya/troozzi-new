@@ -27,13 +27,22 @@ import { useToast } from '@/hooks/use-toast';
 type AnalyticsOverviewPayload = {
   success: boolean;
   data?: {
-    pageViews: { date: string; views: number }[];
-    sales: { date: string; amount: number }[];
-    visitors: { date: string; count: number }[];
-    topProducts: { name: string; sales: number; revenue: number }[];
-    conversionRate: number;
-    bounceRate: number;
-    avgSessionDuration: number;
+    range?: { from: string; to: string };
+    metrics?: {
+      pageViews: number;
+      uniqueVisitors: number;
+      conversionRate: number;
+      bounceRate: number;
+    };
+    charts?: {
+      trafficTrend: { date: string; visitors: number }[];
+      revenueByDay: { date: string; revenue: number }[];
+      productPerformance: { name: string; sales: number; revenue: number }[];
+    };
+    totals?: {
+      orders: number;
+      revenue: number;
+    };
   };
   message?: string;
   error?: string;
@@ -45,8 +54,12 @@ const AnalyticsOverview = () => {
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsOverviewPayload['data'] | null>(null);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: new Date(2024, 11, 9),
-    to: new Date(2024, 11, 15),
+    from: (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      return d;
+    })(),
+    to: new Date(),
   });
 
   useEffect(() => {
@@ -102,11 +115,11 @@ const AnalyticsOverview = () => {
   const COLORS = ['hsl(262, 83%, 58%)', 'hsl(243, 75%, 59%)', 'hsl(199, 89%, 48%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)'];
 
   const pieData = useMemo(() => {
-    return (analytics?.topProducts ?? []).map((p) => ({
+    return (analytics?.charts?.productPerformance ?? []).map((p) => ({
       name: p.name.split(' ').slice(0, 2).join(' '),
       value: p.sales,
     }));
-  }, [analytics?.topProducts]);
+  }, [analytics?.charts?.productPerformance]);
 
   const handleExport = () => {
     if (!analytics) {
@@ -114,13 +127,27 @@ const AnalyticsOverview = () => {
       return;
     }
 
+    const metrics = analytics.metrics ?? {
+      pageViews: 0,
+      uniqueVisitors: 0,
+      conversionRate: 0,
+      bounceRate: 0,
+    };
+
+    const totals = analytics.totals ?? { orders: 0, revenue: 0 };
+
+    const productPerformance = analytics.charts?.productPerformance ?? [];
+    const revenueByDay = analytics.charts?.revenueByDay ?? [];
+
     const exportData = [
-      { metric: 'Page Views', value: analytics.pageViews.reduce((sum, p) => sum + p.views, 0) },
-      { metric: 'Unique Visitors', value: analytics.visitors.reduce((sum, v) => sum + v.count, 0) },
-      { metric: 'Conversion Rate', value: `${analytics.conversionRate}%` },
-      { metric: 'Bounce Rate', value: `${analytics.bounceRate}%` },
-      ...analytics.topProducts.map(p => ({ metric: `Top Product: ${p.name}`, value: p.sales })),
-      ...analytics.sales.map(s => ({ metric: `Sales on ${s.date}`, value: `$${s.amount}` })),
+      { metric: 'Page Views', value: metrics.pageViews },
+      { metric: 'Unique Visitors', value: metrics.uniqueVisitors },
+      { metric: 'Conversion Rate', value: `${metrics.conversionRate}%` },
+      { metric: 'Bounce Rate', value: `${metrics.bounceRate}%` },
+      { metric: 'Total Orders', value: totals.orders },
+      { metric: 'Total Revenue', value: totals.revenue },
+      ...productPerformance.map((p) => ({ metric: `Top Product: ${p.name}`, value: p.sales })),
+      ...revenueByDay.map((d) => ({ metric: `Revenue on ${d.date}`, value: d.revenue })),
     ];
     
     const today = new Date().toISOString().split('T')[0];
@@ -182,7 +209,7 @@ const AnalyticsOverview = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Page Views</p>
                 <p className="text-2xl font-bold">
-                  {analytics ? analytics.pageViews.reduce((sum, p) => sum + p.views, 0).toLocaleString() : isLoading ? '...' : '0'}
+                  {analytics ? (analytics.metrics?.pageViews ?? 0).toLocaleString() : isLoading ? '...' : '0'}
                 </p>
               </div>
             </div>
@@ -197,7 +224,7 @@ const AnalyticsOverview = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Unique Visitors</p>
                 <p className="text-2xl font-bold">
-                  {analytics ? analytics.visitors.reduce((sum, v) => sum + v.count, 0).toLocaleString() : isLoading ? '...' : '0'}
+                  {analytics ? (analytics.metrics?.uniqueVisitors ?? 0).toLocaleString() : isLoading ? '...' : '0'}
                 </p>
               </div>
             </div>
@@ -211,7 +238,7 @@ const AnalyticsOverview = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Conversion Rate</p>
-                <p className="text-2xl font-bold">{analytics ? `${analytics.conversionRate}%` : isLoading ? '...' : '0%'}</p>
+                <p className="text-2xl font-bold">{analytics ? `${analytics.metrics?.conversionRate ?? 0}%` : isLoading ? '...' : '0%'}</p>
               </div>
             </div>
           </CardContent>
@@ -224,7 +251,7 @@ const AnalyticsOverview = () => {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Bounce Rate</p>
-                <p className="text-2xl font-bold">{analytics ? `${analytics.bounceRate}%` : isLoading ? '...' : '0%'}</p>
+                <p className="text-2xl font-bold">{analytics ? `${analytics.metrics?.bounceRate ?? 0}%` : isLoading ? '...' : '0%'}</p>
               </div>
             </div>
           </CardContent>
@@ -238,7 +265,7 @@ const AnalyticsOverview = () => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={analytics?.pageViews ?? []}>
+              <AreaChart data={analytics?.charts?.trafficTrend ?? []}>
                 <defs>
                   <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="hsl(262, 83%, 58%)" stopOpacity={0.3} />
@@ -257,7 +284,7 @@ const AnalyticsOverview = () => {
                 />
                 <Area
                   type="monotone"
-                  dataKey="views"
+                  dataKey="visitors"
                   stroke="hsl(262, 83%, 58%)"
                   fillOpacity={1}
                   fill="url(#colorViews)"
@@ -273,7 +300,7 @@ const AnalyticsOverview = () => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={analytics?.sales ?? []}>
+              <LineChart data={analytics?.charts?.revenueByDay ?? []}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -287,7 +314,7 @@ const AnalyticsOverview = () => {
                 />
                 <Line
                   type="monotone"
-                  dataKey="amount"
+                  dataKey="revenue"
                   stroke="hsl(142, 76%, 36%)"
                   strokeWidth={3}
                   dot={{ fill: 'hsl(142, 76%, 36%)', strokeWidth: 2, r: 4 }}
@@ -329,7 +356,7 @@ const AnalyticsOverview = () => {
               </PieChart>
             </ResponsiveContainer>
             <div className="space-y-3">
-              { (analytics?.topProducts ?? []).map((product, index) => (
+              { (analytics?.charts?.productPerformance ?? []).map((product, index) => (
                 <div key={product.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-3">
                     <div

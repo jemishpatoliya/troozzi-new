@@ -28,36 +28,68 @@ import axios from 'axios';
 
 type DashboardPeriod = 'today' | 'week' | 'month';
 
-type DashboardPayload = {
+type BackendDashboardPayload = {
   success: boolean;
   data?: {
-    current: {
-      products: number;
-      orders: number;
-      revenue: number;
-      customers: number;
-      currency?: string;
+    totalProducts?: number;
+    totalUsers?: number;
+    totalRevenue?: number;
+    customers?: number;
+    orders?: number;
+    growth?: {
+      products?: string;
+      users?: string;
+      revenue?: string;
+      orders?: string;
+      customers?: string;
     };
-    analytics: {
-      sales: { date: string; amount: number }[];
-      visitors: { date: string; count: number }[];
-      topProducts: { name: string; sales: number; revenue: number }[];
-      conversionRate: number;
-      bounceRate: number;
-      avgSessionDuration: number;
+    analytics?: {
+      salesChart?: Array<{ date: string; sales?: number; revenue?: number }>;
+      trafficChart?: Array<{ date: string; visitors?: number; sessions?: number }>;
+      conversionRate?: string;
+      bounceRate?: string;
+      avgSession?: string;
+      topProducts?: Array<{ name?: string; productName?: string; sales?: number; revenue?: number }>;
+      alerts?: Array<{ type: 'info' | 'warning' | 'error' | 'success'; message?: string; count?: number }>;
+      notifications?: Array<{ id: string; title: string; message: string; type: 'info' | 'warning' | 'error' | 'success'; enabled: boolean }>;
+      lowStockProductsList?: Array<{ name?: string; stock?: number }>;
     };
-    lowStockProducts: { name: string; stock: number }[];
-    notifications: { id: string; title: string; message: string; type: 'info' | 'warning' | 'error' | 'success'; enabled: boolean }[];
   };
   message?: string;
   error?: string;
+};
+
+type DashboardData = {
+  current: {
+    products: number;
+    orders: number;
+    revenue: number;
+    customers: number;
+    currency?: string;
+    growth?: {
+      products?: string;
+      orders?: string;
+      revenue?: string;
+      customers?: string;
+    };
+  };
+  analytics: {
+    sales: { date: string; amount: number }[];
+    visitors: { date: string; count: number }[];
+    topProducts: { name: string; sales: number; revenue: number }[];
+    conversionRate: number;
+    bounceRate: number;
+    avgSessionDuration: number;
+  };
+  lowStockProducts: { name: string; stock: number }[];
+  notifications: { id: string; title: string; message: string; type: 'info' | 'warning' | 'error' | 'success'; enabled: boolean }[];
 };
 
 const Dashboard = () => {
   const [period, setPeriod] = useState<DashboardPeriod>('today');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardPayload['data'] | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +106,7 @@ const Dashboard = () => {
           return;
         }
 
-        const response = await axios.get<DashboardPayload>(`/api/admin/dashboard?period=${period}`,
+        const response = await axios.get<BackendDashboardPayload>(`/api/admin/dashboard?period=${period}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -87,7 +119,86 @@ const Dashboard = () => {
           throw new Error(payload?.message || payload?.error || 'Failed to load dashboard');
         }
 
-        if (!cancelled) setData(payload.data);
+        const backend = payload.data;
+        const current = {
+          products: Number(backend.totalProducts ?? 0),
+          orders: Number(backend.orders ?? 0),
+          revenue: Number(backend.totalRevenue ?? 0),
+          customers: Number(backend.customers ?? backend.totalUsers ?? 0),
+          currency: 'INR',
+          growth: {
+            products: backend.growth?.products ?? '0%',
+            orders: backend.growth?.orders ?? '0%',
+            revenue: backend.growth?.revenue ?? '0%',
+            customers: backend.growth?.customers ?? backend.growth?.users ?? '0%',
+          },
+        };
+
+        const sales = (backend.analytics?.salesChart ?? []).map((row) => ({
+          date: row.date,
+          amount: Number(row.revenue ?? 0),
+        }));
+
+        const visitors = (backend.analytics?.trafficChart ?? []).map((row) => ({
+          date: row.date,
+          count: Number(row.visitors ?? 0),
+        }));
+
+        const topProducts = (backend.analytics?.topProducts ?? []).map((p) => ({
+          name: String(p.name ?? p.productName ?? ''),
+          sales: Number(p.sales ?? 0),
+          revenue: Number(p.revenue ?? 0),
+        })).filter((p) => p.name);
+
+        const notifications = (backend.analytics?.notifications ?? []).map((n) => ({
+          id: String(n.id ?? ''),
+          title: String(n.title ?? ''),
+          message: String(n.message ?? ''),
+          type: n.type,
+          enabled: Boolean(n.enabled),
+        })).filter((n) => n.id);
+
+        const lowStockProducts = (backend.analytics?.lowStockProductsList ?? []).map((p) => ({
+          name: String(p.name ?? ''),
+          stock: Number(p.stock ?? 0),
+        })).filter((p) => p.name);
+
+        const normalizePercent = (value?: string) => {
+          if (!value) return 0;
+          const n = Number(String(value).replace('%', ''));
+          return Number.isFinite(n) ? n : 0;
+        };
+
+        const normalizeDurationSeconds = (value?: string) => {
+          if (!value) return 0;
+          const trimmed = String(value).trim();
+          if (trimmed.endsWith('m')) {
+            const minutes = Number(trimmed.slice(0, -1));
+            return Number.isFinite(minutes) ? Math.round(minutes * 60) : 0;
+          }
+          if (trimmed.endsWith('s')) {
+            const seconds = Number(trimmed.slice(0, -1));
+            return Number.isFinite(seconds) ? Math.round(seconds) : 0;
+          }
+          const seconds = Number(trimmed);
+          return Number.isFinite(seconds) ? Math.round(seconds) : 0;
+        };
+
+        const formatted: DashboardData = {
+          current,
+          analytics: {
+            sales,
+            visitors,
+            topProducts,
+            conversionRate: normalizePercent(backend.analytics?.conversionRate),
+            bounceRate: normalizePercent(backend.analytics?.bounceRate),
+            avgSessionDuration: normalizeDurationSeconds(backend.analytics?.avgSession),
+          },
+          lowStockProducts,
+          notifications,
+        };
+
+        if (!cancelled) setData(formatted);
       } catch (e: any) {
         const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to load dashboard';
         if (!cancelled) {
@@ -110,6 +221,39 @@ const Dashboard = () => {
   const analytics = data?.analytics;
   const notifications = data?.notifications ?? [];
   const lowStockProducts = data?.lowStockProducts ?? [];
+
+  const visitorChartData = useMemo(() => {
+    const existing = analytics?.visitors ?? [];
+    if (existing.length > 0) return existing;
+
+    const daysBack = period === 'month' ? 30 : 7;
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const start = new Date(end);
+    start.setDate(end.getDate() - (daysBack - 1));
+
+    const buckets: { date: string; count: number }[] = [];
+    for (let i = 0; i < daysBack; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      buckets.push({ date: d.toISOString().split('T')[0], count: 0 });
+    }
+    return buckets;
+  }, [analytics?.visitors, period]);
+
+  const isVisitorChartAllZero = useMemo(() => {
+    return visitorChartData.length > 0 && visitorChartData.every((row) => (row.count ?? 0) === 0);
+  }, [visitorChartData]);
+
+  const getChangeType = (change?: string) => {
+    const value = String(change ?? '').trim();
+    if (!value) return undefined;
+    const n = Number(value.replace('%', '').replace('+', ''));
+    if (!Number.isFinite(n)) return 'neutral' as const;
+    if (n > 0) return 'positive' as const;
+    if (n < 0) return 'negative' as const;
+    return 'neutral' as const;
+  };
 
   const currencyCode = currentStats?.currency || 'INR';
   const currencyFormatter = useMemo(() => {
@@ -150,32 +294,32 @@ const Dashboard = () => {
         <StatCard
           title="Total Products"
           value={currentStats?.products ?? (isLoading ? '...' : 0)}
-          change="+2"
-          changeType="positive"
+          change={currentStats?.growth?.products}
+          changeType={getChangeType(currentStats?.growth?.products)}
           icon={Package}
           iconColor="bg-primary/10 text-primary"
         />
         <StatCard
           title="Total Orders"
           value={currentStats?.orders ?? (isLoading ? '...' : 0)}
-          change="+12%"
-          changeType="positive"
+          change={currentStats?.growth?.orders}
+          changeType={getChangeType(currentStats?.growth?.orders)}
           icon={ShoppingCart}
           iconColor="bg-info/10 text-info"
         />
         <StatCard
           title="Revenue"
           value={typeof currentStats?.revenue === 'number' ? formatCurrency(currentStats.revenue) : isLoading ? '...' : formatCurrency(0)}
-          change="+8.5%"
-          changeType="positive"
+          change={currentStats?.growth?.revenue}
+          changeType={getChangeType(currentStats?.growth?.revenue)}
           icon={DollarSign}
           iconColor="bg-success/10 text-success"
         />
         <StatCard
           title="Customers"
           value={currentStats?.customers ?? (isLoading ? '...' : 0)}
-          change="+5%"
-          changeType="positive"
+          change={currentStats?.growth?.customers}
+          changeType={getChangeType(currentStats?.growth?.customers)}
           icon={Users}
           iconColor="bg-warning/10 text-warning"
         />
@@ -230,8 +374,14 @@ const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={analytics?.visitors ?? []}>
+            <div className="relative">
+              {isVisitorChartAllZero && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-sm text-muted-foreground">No traffic data available</div>
+                </div>
+              )}
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={visitorChartData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="date" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
@@ -242,9 +392,16 @@ const Dashboard = () => {
                     borderRadius: '8px',
                   }}
                 />
-                <Bar dataKey="count" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+                <Bar
+                  dataKey="count"
+                  fill="hsl(var(--accent))"
+                  radius={[4, 4, 0, 0]}
+                  minPointSize={2}
+                  isAnimationActive={false}
+                />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>

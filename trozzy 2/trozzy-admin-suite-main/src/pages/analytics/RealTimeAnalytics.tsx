@@ -25,6 +25,10 @@ type RealtimePayload = {
     realtimeChart: { time: string; users: number }[];
     activePages: { page: string; users: number; duration: string }[];
     locationData: { country: string; users: number; flag: string }[];
+    meta?: {
+      notices?: string[];
+      supported?: Record<string, boolean>;
+    };
   };
   message?: string;
   error?: string;
@@ -35,6 +39,7 @@ const RealTimeAnalytics = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [liveData, setLiveData] = useState({
     activeUsers: 0,
     ordersPerMinute: 0,
@@ -49,6 +54,7 @@ const RealTimeAnalytics = () => {
   const updateData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setNotice(null);
 
     try {
       const token = localStorage.getItem('token');
@@ -68,12 +74,19 @@ const RealTimeAnalytics = () => {
         throw new Error(payload?.message || payload?.error || 'Failed to load realtime analytics');
       }
 
+      setNotice(payload.message || (payload.data?.meta?.notices ?? []).join(' '));
+
       setLiveData(payload.data.liveData);
       setRealtimeChart(payload.data.realtimeChart);
       setActivePages(payload.data.activePages);
       setLocationData(payload.data.locationData);
     } catch (e: any) {
-      setError(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Failed to load realtime analytics');
+      const status = e?.response?.status;
+      if (status === 404) {
+        setError('Real-time analytics not available');
+      } else {
+        setError(e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Unable to fetch live analytics');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -194,10 +207,11 @@ const RealTimeAnalytics = () => {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {error && (
+        {(error || notice) && (
           <Card className="glass lg:col-span-2">
             <CardContent className="pt-6">
-              <div className="text-destructive font-medium">{error}</div>
+              {error ? <div className="text-destructive font-medium">{error}</div> : null}
+              {!error && notice ? <div className="text-sm text-muted-foreground">{notice}</div> : null}
             </CardContent>
           </Card>
         )}
@@ -210,15 +224,19 @@ const RealTimeAnalytics = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {activePages.map((page) => (
-                <div key={page.page} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div className="space-y-1">
-                    <p className="font-medium text-sm">{page.page}</p>
-                    <p className="text-xs text-muted-foreground">Avg time: {page.duration}</p>
+              {activePages.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No live data right now</div>
+              ) : (
+                activePages.map((page) => (
+                  <div key={page.page} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div className="space-y-1">
+                      <p className="font-medium text-sm">{page.page}</p>
+                      <p className="text-xs text-muted-foreground">Avg time: {page.duration}</p>
+                    </div>
+                    <Badge variant="secondary">{page.users} users</Badge>
                   </div>
-                  <Badge variant="secondary">{page.users} users</Badge>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -232,15 +250,19 @@ const RealTimeAnalytics = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {locationData.map((loc) => (
-                <div key={loc.country} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{loc.flag}</span>
-                    <span className="font-medium text-sm">{loc.country}</span>
+              {locationData.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No live data right now</div>
+              ) : (
+                locationData.map((loc) => (
+                  <div key={loc.country} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{loc.flag}</span>
+                      <span className="font-medium text-sm">{loc.country}</span>
+                    </div>
+                    <Badge variant="secondary">{loc.users} active</Badge>
                   </div>
-                  <Badge variant="secondary">{loc.users} active</Badge>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
