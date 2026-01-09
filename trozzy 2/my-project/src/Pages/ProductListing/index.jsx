@@ -711,10 +711,12 @@ const ProductListing = () => {
 
     useEffect(() => {
         let cancelled = false;
-        async function load() {
+        async function load({ silent = false } = {}) {
             try {
-                setLoading(true);
-                setError("");
+                if (!silent) {
+                    setLoading(true);
+                    setError("");
+                }
 
                 const queryParams = {
                     mode: "public",
@@ -748,14 +750,33 @@ const ProductListing = () => {
                 }
             } catch (e) {
                 if (cancelled) return;
-                setError("Failed to load products");
+                if (!silent) setError("Failed to load products");
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled && !silent) setLoading(false);
             }
         }
-        load();
+
+        void load({ silent: false });
+
+        const onFocus = () => {
+            void load({ silent: true });
+        };
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") void load({ silent: true });
+        };
+
+        window.addEventListener("focus", onFocus);
+        document.addEventListener("visibilitychange", onVisibility);
+
+        const intervalId = window.setInterval(() => {
+            void load({ silent: true });
+        }, 5000);
+
         return () => {
             cancelled = true;
+            window.removeEventListener("focus", onFocus);
+            document.removeEventListener("visibilitychange", onVisibility);
+            window.clearInterval(intervalId);
         };
     }, [page, limit, category, searchQuery, sortBy, priceRange, selectedFilters]);
 

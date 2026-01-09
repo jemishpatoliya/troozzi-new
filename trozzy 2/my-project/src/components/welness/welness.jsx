@@ -31,9 +31,27 @@ const WellnessSection = () => {
       }
     }
 
-    load();
+    void load();
+
+    const onFocus = () => {
+      void load();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    const intervalId = window.setInterval(() => {
+      void load();
+    }, 5000);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(intervalId);
     };
   }, []);
 

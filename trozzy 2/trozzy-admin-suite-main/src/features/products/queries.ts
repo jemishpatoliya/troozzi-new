@@ -113,6 +113,8 @@ export function useSaveDraftMutation() {
     mutationFn: (input: { id?: string; values: ProductManagementFormValues }) => saveProductDraft(input),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: keys.catalogProducts });
+      await qc.invalidateQueries({ queryKey: keys.catalogProductsFull });
+      await qc.refetchQueries({ queryKey: keys.catalogProductsFull });
       await qc.invalidateQueries({ queryKey: keys.product(res.id) });
     },
   });
@@ -124,6 +126,8 @@ export function usePublishMutation() {
     mutationFn: (input: { id?: string; values: ProductManagementFormValues }) => publishProduct(input),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: keys.catalogProducts });
+      await qc.invalidateQueries({ queryKey: keys.catalogProductsFull });
+      await qc.refetchQueries({ queryKey: keys.catalogProductsFull });
       await qc.invalidateQueries({ queryKey: keys.product(res.id) });
     },
   });
@@ -135,6 +139,8 @@ export function useUpdateProductMutation() {
     mutationFn: (input: { id: string; values: ProductManagementFormValues }) => updateProduct(input),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: keys.catalogProducts });
+      await qc.invalidateQueries({ queryKey: keys.catalogProductsFull });
+      await qc.refetchQueries({ queryKey: keys.catalogProductsFull });
       await qc.invalidateQueries({ queryKey: keys.product(res.id) });
     },
   });

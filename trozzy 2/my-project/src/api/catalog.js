@@ -1,5 +1,46 @@
 import { api } from "./client";
 
+function applyManagementToProduct(product) {
+    const management = product && product.management;
+    if (!management) return product;
+
+    const next = { ...product };
+    const basic = (management && management.basic) || {};
+    const pricing = (management && management.pricing) || {};
+    const inventory = (management && management.inventory) || {};
+    const marketing = (management && management.marketing) || {};
+    const seo = (management && management.seo) || {};
+    const shipping = (management && management.shipping) || {};
+
+    if (typeof basic.name === "string" && basic.name.trim()) next.name = basic.name;
+    if (typeof inventory.sku === "string" && inventory.sku.trim()) next.sku = inventory.sku;
+
+    if (typeof pricing.sellingPrice === "number" && Number.isFinite(pricing.sellingPrice)) next.price = pricing.sellingPrice;
+    if (typeof inventory.stockQuantity === "number" && Number.isFinite(inventory.stockQuantity)) next.stock = inventory.stockQuantity;
+
+    if (typeof basic.status === "string" && basic.status) {
+        next.status = basic.status === "archived" ? "inactive" : basic.status;
+    }
+
+    if (typeof basic.shortDescription === "string") next.description = basic.shortDescription;
+    if (typeof basic.brand === "string") next.brand = basic.brand;
+    if (typeof marketing.featured === "boolean") next.featured = marketing.featured;
+
+    if (typeof seo.metaTitle === "string") next.metaTitle = seo.metaTitle;
+    if (typeof seo.metaDescription === "string") next.metaDescription = seo.metaDescription;
+
+    if (typeof shipping.weightKg === "number" && Number.isFinite(shipping.weightKg)) next.weight = shipping.weightKg;
+    if (shipping.dimensionsCm && typeof shipping.dimensionsCm === "object") next.dimensions = shipping.dimensionsCm;
+
+    return next;
+}
+
+function normalizeProductsResponse(data) {
+    if (Array.isArray(data)) return data.map(applyManagementToProduct);
+    if (data && Array.isArray(data.items)) return { ...data, items: data.items.map(applyManagementToProduct) };
+    return data;
+}
+
 export async function fetchCategories() {
     const res = await api.get("/categories");
     return res.data;
@@ -44,17 +85,17 @@ export async function fetchProducts({
     if (order) params.order = order;
 
     const res = await api.get("/products", { params });
-    return res.data;
+    return normalizeProductsResponse(res.data);
 }
 
 export async function fetchProductById(id, { mode = "public" } = {}) {
     const res = await api.get(`/products/${id}`, { params: { mode } });
-    return res.data;
+    return applyManagementToProduct(res.data);
 }
 
 export async function fetchProductBySlug(slug, { mode = "public" } = {}) {
     const res = await api.get(`/products/slug/${slug}`, { params: { mode } });
-    return res.data;
+    return applyManagementToProduct(res.data);
 }
 
 export async function fetchBanners({ position } = {}) {

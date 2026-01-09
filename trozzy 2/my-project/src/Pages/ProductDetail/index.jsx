@@ -49,19 +49,50 @@ const ProductDetail = () => {
         }
     }, [productId]);
 
-    const loadProductDetails = async () => {
+    const loadProductDetails = async ({ silent = false } = {}) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const data = await fetchProductDetails(productId);
             setProduct(data);
             if (data.sizes?.length > 0) setSelectedSize(data.sizes[0]);
             if (data.colors?.length > 0) setSelectedColor(data.colors[0]);
         } catch (err) {
-            setError('Failed to load product details');
+            if (!silent) setError('Failed to load product details');
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!productId) return;
+
+        let cancelled = false;
+        const refresh = async () => {
+            if (cancelled) return;
+            await loadProductDetails({ silent: true });
+        };
+
+        const onFocus = () => {
+            void refresh();
+        };
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') void refresh();
+        };
+
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onVisibility);
+
+        const intervalId = window.setInterval(() => {
+            void refresh();
+        }, 5000);
+
+        return () => {
+            cancelled = true;
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisibility);
+            window.clearInterval(intervalId);
+        };
+    }, [productId]);
 
     const loadQuestions = async () => {
         try {
