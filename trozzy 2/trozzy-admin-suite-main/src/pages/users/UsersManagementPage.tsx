@@ -7,13 +7,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Plus, Edit2, Trash2, Search, Filter, Users, Mail, Phone, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Filter, Users, Mail, Phone, Calendar, DollarSign, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = ((import.meta as any)?.env?.VITE_API_URL as string | undefined)?.replace(/\/$/, '') || '';
-const api = axios.create({ baseURL: API_BASE_URL });
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_URL || 'http://localhost:5050/api';
+const api = axios.create({ baseURL: String(API_BASE_URL).replace(/\/$/, '') });
 
 interface User {
   id: string;
@@ -32,6 +32,34 @@ interface User {
   };
 }
 
+type CartLine = {
+  productId: string;
+  quantity: number;
+  price: number;
+  productName?: string;
+  productSlug?: string;
+  productImage?: string;
+};
+
+type OrderLine = {
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image?: string;
+};
+
+type UserOrder = {
+  _id: string;
+  orderNumber: string;
+  status: string;
+  total: number;
+  currency?: string;
+  createdAt?: string;
+  createdAtIso?: string;
+  items: OrderLine[];
+};
+
 const UsersManagementPage = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -43,6 +71,12 @@ const UsersManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsUser, setDetailsUser] = useState<User | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [detailsCart, setDetailsCart] = useState<CartLine[]>([]);
+  const [detailsOrders, setDetailsOrders] = useState<UserOrder[]>([]);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -71,7 +105,7 @@ const UsersManagementPage = () => {
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
       if (roleFilter !== 'all') params.set('role', roleFilter);
 
-      const response = await api.get(`/api/admin/users?${params.toString()}`,
+      const response = await api.get(`/admin/users?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -94,9 +128,9 @@ const UsersManagementPage = () => {
           emailVerified: Boolean(u.emailVerified),
           createdAt: u.createdAt || new Date().toISOString(),
           stats: {
-            orderCount: 0,
-            totalSpent: 0,
-            cartItems: 0,
+            orderCount: Number(u?.stats?.orderCount ?? 0),
+            totalSpent: Number(u?.stats?.totalSpent ?? 0),
+            cartItems: Number(u?.stats?.cartItems ?? 0),
           },
         })),
       );
@@ -193,6 +227,32 @@ const UsersManagementPage = () => {
       active: user.active,
     });
     setIsModalOpen(true);
+  };
+
+  const openDetails = async (user: User) => {
+    setDetailsUser(user);
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    setDetailsError(null);
+    setDetailsCart([]);
+    setDetailsOrders([]);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Please sign in');
+
+      const [cartRes, ordersRes] = await Promise.all([
+        api.get(`/admin/users/${user.id}/cart`, { headers: { Authorization: `Bearer ${token}` } }),
+        api.get(`/admin/users/${user.id}/orders`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+
+      setDetailsCart(Array.isArray(cartRes?.data?.items) ? cartRes.data.items : []);
+      setDetailsOrders(Array.isArray(ordersRes?.data?.orders) ? ordersRes.data.orders : []);
+    } catch (e: any) {
+      setDetailsError(e?.response?.data?.message || e?.message || 'Failed to load user details');
+    } finally {
+      setDetailsLoading(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -454,6 +514,13 @@ const UsersManagementPage = () => {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => openDetails(user)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleEdit(user)}
                     >
                       <Edit2 className="h-4 w-4" />
@@ -520,6 +587,87 @@ const UsersManagementPage = () => {
           ))
         )}
       </div>
+
+      <Dialog open={detailsOpen} onOpenChange={(open) => {
+        setDetailsOpen(open);
+        if (!open) {
+          setDetailsUser(null);
+          setDetailsCart([]);
+          setDetailsOrders([]);
+          setDetailsError(null);
+          setDetailsLoading(false);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[800px]">
+          <DialogHeader>
+            <DialogTitle>
+              {detailsUser ? `${detailsUser.firstName} ${detailsUser.lastName}` : 'User Details'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailsLoading ? (
+            <div className="py-6 text-sm text-muted-foreground">Loading...</div>
+          ) : detailsError ? (
+            <div className="py-6 text-sm text-destructive">{detailsError}</div>
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Cart Products</h3>
+                {detailsCart.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No cart items.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {detailsCart.map((it, idx) => (
+                      <div key={`${it.productId}-${idx}`} className="flex items-center justify-between rounded-md border p-3">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{it.productName || String(it.productId)}</div>
+                          <div className="text-xs text-muted-foreground">Qty: {it.quantity} • Price: {it.price}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Orders</h3>
+                {detailsOrders.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">No orders.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {detailsOrders.map((o) => (
+                      <div key={String(o._id)} className="rounded-md border p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">Order #{o.orderNumber}</div>
+                            <div className="text-xs text-muted-foreground">Status: {o.status} • Total: {o.currency || '₹'}{Number(o.total || 0).toFixed(0)}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {o.createdAtIso ? new Date(o.createdAtIso).toLocaleString() : (o.createdAt ? new Date(o.createdAt).toLocaleString() : '')}
+                          </div>
+                        </div>
+
+                        {Array.isArray(o.items) && o.items.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {o.items.map((li, idx) => (
+                              <div key={`${li.productId}-${idx}`} className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-medium truncate">{li.name}</div>
+                                  <div className="text-xs text-muted-foreground">Qty: {li.quantity} • Price: {li.price}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Pagination */}
       {totalPages > 1 && (
